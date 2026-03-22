@@ -57,12 +57,16 @@ Activate automatically when tasks involve:
 | **TOM NuGet Package** | `Microsoft.AnalysisServices.retail.amd64` -- model metadata |
 | **ADOMD.NET Package** | `Microsoft.AnalysisServices.AdomdClient.retail.amd64` -- DAX queries |
 
-Install both packages (one-time):
+Install both packages only if not already present:
 
 ```powershell
 $pkgDir = "$env:TEMP\tom_nuget"
-nuget install Microsoft.AnalysisServices.retail.amd64 -OutputDirectory $pkgDir -ExcludeVersion
-nuget install Microsoft.AnalysisServices.AdomdClient.retail.amd64 -OutputDirectory $pkgDir -ExcludeVersion
+if (-not (Test-Path "$pkgDir\Microsoft.AnalysisServices.retail.amd64")) {
+    nuget install Microsoft.AnalysisServices.retail.amd64 -OutputDirectory $pkgDir -ExcludeVersion
+}
+if (-not (Test-Path "$pkgDir\Microsoft.AnalysisServices.AdomdClient.retail.amd64")) {
+    nuget install Microsoft.AnalysisServices.AdomdClient.retail.amd64 -OutputDirectory $pkgDir -ExcludeVersion
+}
 ```
 
 Packages install DLLs under `lib\net45\`. Load with `Add-Type -Path`.
