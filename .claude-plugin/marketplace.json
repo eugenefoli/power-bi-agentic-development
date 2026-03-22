@@ -5,7 +5,7 @@
   },
   "metadata": {
     "description": "Skills and tools for agentic Power BI development including Best Practice Analyzer rules, C# scripting, and Tabular Editor integration.",
-    "version": "0.4.1"
+    "version": "0.5.0"
   },
   "plugins": [
     {
@@ -16,6 +16,11 @@
     {
       "name": "pbi-desktop",
       "description": "Connect to Power BI Desktop's local Analysis Services instance to enumerate models, query with DAX, refresh data, and modify metadata via TOM. No MCP server required.",
+      "source": "./"
+    },
+    {
+      "name": "pbip",
+      "description": "Skills for working with Power BI Project (PBIP) files including TMDL authoring, cascading renames, project forking, and report visual JSON patterns.",
       "source": "./"
     }
   ]
