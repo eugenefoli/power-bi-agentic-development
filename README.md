@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.2.0-blue" alt="Version">
+  <img src="https://img.shields.io/badge/version-0.4.0-blue" alt="Version">
   <img src="https://img.shields.io/badge/tabular_editor-2%20%7C%203-orange" alt="Tabular Editor">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
 </p>
@@ -23,7 +23,7 @@ claude plugin install tabular-editor@power-bi-agentic-development
 ```
 
 
-## What's Included (v0.2.0)
+## What's Included (v0.4.0)
 
 ### Skills
 
