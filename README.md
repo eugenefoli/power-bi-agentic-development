@@ -27,32 +27,27 @@ claude plugin install tabular-editor@power-bi-agentic-development
 
 ### Skills
 
-| Skill | Description |
-|-------|-------------|
-| `bpa-rules` | Create and improve Best Practice Analyzer rules |
-| `c-sharp-scripting` | C# scripting for Tabular Editor (TOM API, LINQ, WinForms) |
-| `c-sharp-macros` | Tabular Editor macro development |
-| `tabular-editor-cli` | Tabular Editor CLI usage and automation |
-| `tabular-editor-config` | TE3 config files (TMUO, preferences, BPA settings) |
-| `tabular-editor-docs` | Local search of Tabular Editor documentation |
+| Skill | Plugin | Description |
+|-------|--------|-------------|
+| [`bpa-rules`](skills/bpa-rules/) | tabular-editor | Create and improve Best Practice Analyzer rules |
+| [`c-sharp-scripting`](skills/c-sharp-scripting/) | tabular-editor | C# scripting for Tabular Editor (TOM API, LINQ, WinForms) |
+| [`c-sharp-macros`](skills/c-sharp-macros/) | tabular-editor | Tabular Editor macro development |
+| [`tabular-editor-cli`](skills/tabular-editor-cli/) | tabular-editor | Tabular Editor CLI usage and automation |
+| [`tabular-editor-config`](skills/tabular-editor-config/) | tabular-editor | TE3 config files (TMUO, preferences, BPA settings) |
+| [`tabular-editor-docs`](skills/tabular-editor-docs/) | tabular-editor | Local search of Tabular Editor documentation |
+| [`connect-pbid`](skills/connect-pbid/) | pbi-desktop | Connect to PBI Desktop's local AS instance via TOM and ADOMD.NET |
 
 ### Commands
 
-| Command | Description |
-|---------|-------------|
-| `/suggest-rule` | Generate BPA rules from descriptions |
+| Command | Plugin | Description |
+|---------|--------|-------------|
+| [`/suggest-rule`](commands/suggest-rule.md) | tabular-editor | Generate BPA rules from descriptions |
 
 ### Agents
 
-| Agent | Description |
-|-------|-------------|
-| `bpa-expression-helper` | Debug and improve BPA rule expressions |
-
-### Scripts
-
-| Script | Description |
-|--------|-------------|
-| `bpa_rules_audit.py` | Comprehensive audit of BPA rules across all sources (built-in, URL, model, user, machine) |
+| Agent | Plugin | Description |
+|-------|--------|-------------|
+| [`bpa-expression-helper`](agents/bpa-expression-helper.md) | tabular-editor | Debug and improve BPA rule expressions |
 
 
 ## Requirements
@@ -60,6 +55,7 @@ claude plugin install tabular-editor@power-bi-agentic-development
 - [Tabular Editor 2](https://github.com/TabularEditor/TabularEditor/releases) or [Tabular Editor 3](https://tabulareditor.com/)
 - For XMLA operations: Power BI Premium or Fabric capacity with XMLA read/write enabled
 - For `tabular-editor-docs` skill: Clone [TabularEditorDocs](https://github.com/TabularEditor/TabularEditorDocs) locally
+- For `connect-pbid` skill: Power BI Desktop open with a model loaded, PowerShell, NuGet CLI
 
 
 ## Skills Overview
@@ -96,6 +92,16 @@ Manage Tabular Editor configuration files:
 - Preferences JSON schema
 - BPA rule file locations
 - Workspace connections
+
+### Connect to PBI Desktop (`connect-pbid`)
+
+Connect to Power BI Desktop's local Analysis Services instance without MCP servers or external tooling:
+- Port discovery and TOM/ADOMD.NET connection
+- Model enumeration (tables, columns, measures, relationships)
+- DAX queries via ADOMD.NET
+- Model refresh via TMSL
+- Full model modification (CRUD for all TOM object types)
+- macOS + Parallels support
 
 
 ## Related Projects
