@@ -1,6 +1,6 @@
 ---
 name: pbir-format
-description: "This skill should be used when the user asks about 'PBIR format', 'PBIR JSON structure', 'what does this visual.json property mean', 'how do PBIR expressions work', 'objects vs visualContainerObjects', 'theme inheritance', 'conditional formatting pattern', 'extension measures', 'visual container formatting', 'how to create a visual in PBIR', 'PBIR page structure', 'visual.json format', 'PBIR sorting', 'report wallpaper', 'filter formatting', 'PBIR bookmarks', 'definition.pbir', 'query roles', 'field references in PBIR', or needs to understand Power BI Enhanced Report metadata format idiosyncrasies. This is a format reference for understanding and authoring PBIR JSON schemas and patterns."
+description: "This skill should be used when the user asks about 'PBIR format', 'PBIR JSON structure', 'what does this visual.json property mean', 'how do PBIR expressions work', 'objects vs visualContainerObjects', 'theme inheritance', 'conditional formatting pattern', 'extension measures', 'visual container formatting', 'how to create a visual in PBIR', 'PBIR page structure', 'visual.json format', 'PBIR sorting', 'report wallpaper', 'filter formatting', 'PBIR bookmarks', 'definition.pbir', 'query roles', 'field references in PBIR', 'change the theme', 'modify theme', 'update theme colors', 'push formatting to theme', 'theme fonts', 'theme text classes', 'set theme formatting', 'theme wildcards', 'visual type overrides in theme', 'filter pane theme styling', or needs to understand Power BI Enhanced Report metadata format idiosyncrasies. This is a format reference for understanding and authoring PBIR JSON schemas and patterns."
 ---
 
 # PBIR Format Reference
@@ -110,10 +110,11 @@ When you are reviewing someone's report you should be lighthearted and chipper b
 | Task | Read |
 |------|------|
 | Add or modify a visual | **`references/visual-json.md`** -- expression syntax, field references, query roles, position, objects vs visualContainerObjects, selectors |
-| Change formatting or colors | **`references/visual-container-formatting.md`** (container chrome) + **`references/theme.md`** (theme-level formatting) |
+| Change formatting or colors | **`references/visual-container-formatting.md`** (container chrome) + **`references/theme.md`** (theme-level formatting). Prefer theme changes over bespoke visual formatting |
 | Add conditional formatting | **`references/schema-patterns/conditional-formatting.md`** + **`references/measures.md`** (extension measures for CF) |
 | Add or configure filters | **`references/filter-pane.md`** -- all 7 filter types, default values, filter discovery |
-| Work with the theme | **`references/theme.md`** -- inheritance, wildcards, visual-type overrides, filter pane styling |
+| Work with the theme | **`references/theme.md`** -- inheritance, wildcards, visual-type overrides, filter pane styling, inspecting and modifying with jq |
+| Push visual formatting to theme | **`references/theme.md`** -- promote bespoke visual formatting into theme defaults for that visual type (copy from visual.json `objects`/`visualContainerObjects` into theme `visualStyles`) |
 | Change page layout/background | **`references/page.md`** -- dimensions, background, wallpaper, visualInteractions |
 | Create a tooltip page | **`references/page.md`** -- tooltip page setup (type, size, visibility) + visualTooltip opt-in on visuals |
 | Create a drillthrough page | **`references/page.md`** -- drillthrough filter in page filterConfig |
@@ -161,9 +162,9 @@ A report must be connected to a semantic model. There are two ways to do this:
 - **`references/bookmarks.md`** -- Bookmark structure and state snapshots
 
 **Formatting & expressions:**
+- **`references/theme.md`** -- Theme wildcards, inheritance, color system, filter pane styling, visual-type overrides. Includes jq patterns for inspecting and modifying theme JSON directly
 - **`references/schema-patterns/`** -- Expressions, selectors, conditional formatting, visual calculations
 - **`references/visual-container-formatting.md`** -- objects vs visualContainerObjects deep-dive
-- **`references/theme.md`** -- Theme wildcards, inheritance, and color system
 - **`references/measures-vs-literals.md`** -- When to use measure expressions vs literal values
 - **`references/measures.md`** -- Extension measure patterns
 
