@@ -11,11 +11,11 @@ description: This skill should be used when the user asks about "report layout",
 >
 > If neither the `pbir-cli` skill nor the `pbir-format` skill is loaded, ask the user to install the appropriate plugin before proceeding with report modifications.
 
-Best practices and guidelines for Power BI report design. This file provides human-written guidelines, inspiration, and context about Power BI reports for Claude. Without these guidelines, Claude typically tends to struggle with creating good reports, ignoring themes, visual best practices, and common sense evaluation of the formatting choices, chart choices, and visual layouts. The result of this is typically called "Power BI Slop". Avoid "Power BI Slop" at all cost.
+Best practices and guidelines for Power BI report design. Follow these guidelines strictly to avoid generic, poorly formatted reports ("Power BI Slop").
 
-Claude must be innovative, pushing boundaries while still adhering to common rules and guidelines in data visualization. Claude must work within the many constraints of Power BI reporting, aiming for simplicity and effectiveness over aesthetics and decoration. Reports, pages, and visuals should be focused on answering specific questions and minimizing cognitive load, rather than making reports "look pretty and impressive".
+Be innovative, pushing boundaries while adhering to data visualization rules and guidelines. Work within Power BI's constraints, aiming for simplicity and effectiveness over aesthetics and decoration. Focus reports, pages, and visuals on answering specific questions and minimizing cognitive load -- not on looking "pretty and impressive".
 
-If a user makes requests that directly contradict the guidelines, Claude is allowed to push back and debate with the user. The purpose of this debate should be to inform the user of potentially better options that can lead to improved outcomes.
+When a user request contradicts these guidelines, push back and explain better alternatives. The goal is to inform the user of options that lead to improved outcomes.
 
 ## Core rules
 
@@ -26,10 +26,10 @@ If a user makes requests that directly contradict the guidelines, Claude is allo
 5. **Semantic Models:** Reports in Power BI are complex. They are dependant on an underlying semantic model (either in the .SemanticModel folder, called a "thick report" or a published model in Power BI/Fabric, called a "thin report"). Much of the functionality from a Power BI report comes from its semantic model design or DAX code
 6. **Report extensions, or thin report measures:** It is possible to create calculation logic in Power BI report, called "thin report measures" or "visual calculations". These should be used sparingly and only for "report-specific" scenarios
 7. **Visual fields:** All data visuals should have field bindings, and all field bindings should be for fields that actually exist in the model; there is no reason for visuals to exist that have no fields bound
-8. **Chart selection:** When evaluating reports or creating new visuals, Claude must make smart choices about what visuals to use for which scenario. Visual vocabulary is essential for this skill.
-9. **Use of color:** Colors can come from the theme (themedataColor) or visual configuration (hex color code). Colors should be muted and soft; colors that implicitly encode meaning (like red=bad, green=good) should be avoided unless using them for that encoding. Claude should consider colorblindness and use accessible palettes (blues instead of greens with reds, for instance).
+8. **Chart selection:** Make smart choices about what visuals to use for each scenario. Visual vocabulary is essential for this skill.
+9. **Use of color:** Colors can come from the theme (themedataColor) or visual configuration (hex color code). Colors should be muted and soft; colors that implicitly encode meaning (like red=bad, green=good) should be avoided unless using them for that encoding. Consider colorblindness and use accessible palettes (blues instead of greens with reds, for instance).
 10. **Pre-attentive attributes:** Styles and colors should be used to steer and direct attention, and not to decorate charts. Formatting of visuals should be intentional and not purely aesthetic. Styles should where possible be stored in the theme and not in bespoke visual configuration.
-11. **Fonts:** Claude should defer to the *Segoe UI*, *Segoe UI Semibold* fonts, where possible. Do not use custom fonts, since they aren't guaranteed to render on user computers. Claude should evaluate whether fonts are sufficiently large to be readable given the visual and page size.
+11. **Fonts:** Prefer *Segoe UI* and *Segoe UI Semibold*. Do not use custom fonts, since they aren't guaranteed to render on user computers. Evaluate whether fonts are sufficiently large to be readable given the visual and page size.
 
 ## Page Layout Guidelines
 

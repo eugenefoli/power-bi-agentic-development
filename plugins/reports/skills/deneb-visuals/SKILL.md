@@ -15,14 +15,14 @@ Deneb is a certified custom visual for Power BI that enables Vega and Vega-Lite 
 
 ## Provider Policy
 
-**Prefer to use Vega (full) as the default provider for new Deneb visuals.** Vega provides full control over signals, events, transforms, encode blocks, and interactions -- producing higher-quality, more maintainable specs. Only use Vega-Lite when modifying an existing Deneb visual that already uses Vega-Lite.
+**Prefer Vega-Lite** for new Deneb visuals unless specific Vega-only features are required (signals, event streams, custom projections, force/voronoi layouts). Vega-Lite is more concise, easier to maintain, and covers most chart types. For advanced Vega features, see `references/vega-patterns.md` and the [Vega documentation](https://vega.github.io/vega/docs/).
 
 ## Visual Identity
 
 - **visualType:** `deneb7E15AEF80B9E4D4F8E12924291ECE89A`
 - **Data role:** Single `dataset` role (all fields go into one "Values" well)
 - **Default row limit:** 10,000 rows (override via `dataLimit.override`)
-- **Provider:** `vega` (default for new visuals) or `vegaLite` (existing visuals only)
+- **Provider:** `vegaLite` (default) or `vega` (when Vega-specific features needed)
 - **Render modes:** `svg` (default, sharp text) or `canvas` (better for large datasets)
 
 ## Custom Visual Registration (Required)
@@ -45,45 +45,26 @@ Create the visual.json file manually (see `pbir-format` skill in the pbip plugin
 
 All fields bind to the single `dataset` role. Use `Table.Column` for columns and `Table.Measure` for measures. Field names in bindings must match those used in the Vega/Vega-Lite spec.
 
-### Step 2: Write the Vega Spec
+### Step 2: Write the Spec
 
-Create a Vega JSON spec file. In Vega, `data` is an **array** of named datasets:
+Create a Vega-Lite (or Vega) JSON spec file. Key difference:
+
+- **Vega-Lite:** `"data": {"name": "dataset"}` (object)
+- **Vega:** `"data": [{"name": "dataset"}]` (array)
 
 ```json
 {
-  "$schema": "https://vega.github.io/schema/vega/v5.json",
-  "data": [{"name": "dataset"}],
-  "width": {"signal": "pbiContainerWidth - 25"},
-  "height": {"signal": "pbiContainerHeight - 27"},
-  "padding": 5,
-  "scales": [
-    {"name": "x", "type": "band", "domain": {"data": "dataset", "field": "Category"}, "range": "width", "padding": 0.1},
-    {"name": "y", "type": "linear", "domain": {"data": "dataset", "field": "Value"}, "range": "height", "nice": true, "zero": true}
-  ],
-  "axes": [
-    {"orient": "bottom", "scale": "x"},
-    {"orient": "left", "scale": "y"}
-  ],
-  "marks": [
-    {
-      "type": "rect",
-      "from": {"data": "dataset"},
-      "encode": {
-        "enter": {
-          "x": {"scale": "x", "field": "Category"},
-          "width": {"scale": "x", "band": 1},
-          "y": {"scale": "y", "field": "Value"},
-          "y2": {"scale": "y", "value": 0}
-        },
-        "update": {"fill": {"signal": "pbiColor(0)"}},
-        "hover": {"fill": {"signal": "pbiColor(0, -0.3)"}}
-      }
-    }
-  ]
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "data": {"name": "dataset"},
+  "mark": {"type": "bar", "tooltip": true},
+  "encoding": {
+    "y": {"field": "Category", "type": "nominal"},
+    "x": {"field": "Value", "type": "quantitative"}
+  }
 }
 ```
 
-Field names in the spec must match the `nativeQueryRef` (display name) from the field bindings.
+See `examples/spec/` for complete spec files (Vega and Vega-Lite) and `examples/visual/` for full PBIR visual.json files. Field names in the spec must match the `nativeQueryRef` (display name) from the field bindings.
 
 ### Step 3: Inject the Spec
 
@@ -122,13 +103,21 @@ Validate JSON syntax with `jq empty <visual.json>` and inspect the visual.json t
 
 ### Field Name Escaping in Expressions (Critical)
 
-When referencing fields with spaces in Vega `formula` or Vega-Lite `calculate` expressions, **always use double quotes**, never single quotes:
+Escaping depends on whether the spec is standalone or injected into a PBIR visual.json:
+
+**Standalone spec files** (in `examples/spec/`): use double quotes with JSON escaping:
 
 ```json
-{"type": "formula", "as": "diff", "expr": "datum[\"Order Lines\"] - datum[\"Order Lines 1YP\"]"}
+{"calculate": "datum[\"Order Lines\"] - datum[\"Order Lines (PY)\"]", "as": "diff"}
 ```
 
-**Why:** Deneb stores the entire spec as a single-quoted JSON literal. Single quotes inside the spec break the expression parser. Double quotes resolve correctly.
+**Inside PBIR visual.json** (in `examples/visual/`): the entire spec is a single-quoted DAX literal string. Field names with spaces use doubled single quotes (`''`):
+
+```
+datum[''Order Lines''] - datum[''Order Lines (PY)'']
+```
+
+Single quotes that are NOT part of field name escaping (e.g., string literals in filter expressions like `datum.Series == 'Actuals'`) work as-is because they don't conflict with the outer single-quote wrapper.
 
 ### Responsive Sizing (Vega)
 
@@ -183,16 +172,16 @@ Deneb injects `__identity__` (row context), `__selected__` (selection state), an
 
 ## Best Practices
 
-1. **Use Vega** for all new visuals -- only Vega-Lite for editing existing Vega-Lite specs
+1. **Use Vega-Lite** for new visuals unless Vega-specific features are needed (signals, events, force layouts)
 2. **Always use `autosize: fit`** in config for responsive Power BI sizing
 3. **Use `pbiContainerWidth`/`pbiContainerHeight`** signals for responsive Vega specs
 4. **Use theme colors** (`pbiColor`, `pbiColorNominal`) instead of hex values
-5. **Use `enter`/`update`/`hover`** encode blocks for clean state management
+5. **Use `enter`/`update`/`hover`** encode blocks for clean state management (Vega only)
 6. **Enable tooltips** with `"tooltip": {"signal": "datum"}` on marks
 7. **Mind row limits** -- 10K default; set `dataLimit.override` and use `renderMode: canvas` for large datasets
 8. **Test field names** -- verify `nativeQueryRef` matches spec field references
 9. **Avoid external data** -- AppSource certification prevents loading external URLs
-10. **Double quotes only** in expressions -- never single quotes (see escaping rules)
+10. **Escaping depends on context** -- double quotes in standalone specs, doubled single quotes in PBIR visual.json (see escaping rules above)
 
 ## When to Use Deneb
 
