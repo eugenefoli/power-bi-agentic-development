@@ -29,6 +29,7 @@ claude plugin install tabular-editor@power-bi-agentic-development
 claude plugin install semantic-models@power-bi-agentic-development
 claude plugin install pbi-desktop@power-bi-agentic-development
 claude plugin install pbip@power-bi-agentic-development
+claude plugin install report@power-bi-agentic-development
 
 # From the Fabric CLI marketplace (separate repo)
 claude plugin marketplace add data-goblin/fabric-cli-plugin
@@ -75,6 +76,11 @@ You can also drag any `.md` skill file into Copilot Chat or reference it with `#
 | [`pbip`](plugins/pbip/skills/pbip/) | pbip | Power BI Project (PBIP) format, structure, and file types |
 | [`pbir-format`](plugins/pbip/skills/pbir-format/) | pbip | Skill for working with PBIR metadata files (visual.json, report.json, themes, filters, report extensions / thin measures, visual calculations) |
 | [`standardize-naming-conventions`](plugins/semantic-models/skills/standardize-naming-conventions/) | semantic-models | Audit and standardize naming conventions in semantic models |
+| [`pbi-report-design`](plugins/report/skills/pbi-report-design/) | report | Power BI report design principles, layout, KPI/card/table patterns |
+| [`deneb-visuals`](plugins/report/skills/deneb-visuals/) | report | Deneb custom visuals with Vega and Vega-Lite specs |
+| [`r-visuals`](plugins/report/skills/r-visuals/) | report | R script visuals (ggplot2) in Power BI reports |
+| [`python-visuals`](plugins/report/skills/python-visuals/) | report | Python script visuals (matplotlib/seaborn) in Power BI reports |
+| [`svg-visuals`](plugins/report/skills/svg-visuals/) | report | SVG visuals via DAX measures in Power BI reports |
 
 ### Commands
 
@@ -87,12 +93,14 @@ You can also drag any `.md` skill file into Copilot Chat or reference it with `#
 | Agent | Plugin | Description |
 |-------|--------|-------------|
 | [`bpa-expression-helper`](plugins/tabular-editor/agents/bpa-expression-helper.md) | tabular-editor | Debug and improve BPA rule expressions |
+| [`pbip-validator`](plugins/pbip/agents/pbip-validator.md) | pbip | Validate PBIP project structure, TMDL syntax, and PBIR schemas |
 
 
 ## Related Projects
 
 - [fabric-cli-plugin](https://github.com/data-goblin/fabric-cli-plugin) - Microsoft Fabric CLI skills and MCP servers
 - [TabularEditor/BestPracticeRules](https://github.com/TabularEditor/BestPracticeRules) - Standard BPA rule collections
+- **pbir-cli** (not yet released) - CLI tool for PBIR report operations (create, validate, modify). Some skills in the `report` plugin reference `pbir` CLI commands that will become available when this tool is released. In the meantime, use direct JSON editing with the `pbir-format` skill from the `pbip` plugin.
 
 
 ## Use or re-use of these skills
