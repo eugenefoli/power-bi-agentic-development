@@ -538,74 +538,58 @@ foreach ($m in ($model.Tables | ForEach-Object { $_.Measures })) {
 
 ### Find the Open File Path
 
-TOM does not expose the `.pbix`/`.pbip` file path directly. Use the Windows process list to find it:
+TOM does not expose the `.pbix`/`.pbip` file path directly. The most reliable method is reading the `msmdsrv.exe` command line, which includes the workspace data path. From there the workspace folder name can be matched to identify the open model.
+
+**Step 1 — Find the workspace data path from msmdsrv:**
 
 ```powershell
-# Get the file path of the open PBI Desktop instance(s)
+# Get the workspace path from the msmdsrv process command line
+(Get-WmiObject Win32_Process -Filter "Name='msmdsrv.exe'").CommandLine
+# Output example:
+# "...\msmdsrv.exe" -c -n AnalysisServicesWorkspace_<guid> -s "C:\Users\<user>\Microsoft\Power BI Desktop Store App\AnalysisServicesWorkspaces\...\Data"
+```
+
+The `-s` argument gives the workspace data directory. The port file is in that same directory:
+
+```powershell
+$wsData = "C:\Users\<user>\Microsoft\Power BI Desktop Store App\AnalysisServicesWorkspaces\AnalysisServicesWorkspace_<guid>\Data"
+Get-Content "$wsData\msmdsrv.port.txt"
+```
+
+**Step 2 — Try the window title (non-Store PBI Desktop only):**
+
+```powershell
+# Window title includes file path on non-Store installs only
 Get-Process PBIDesktop -ErrorAction SilentlyContinue |
-    ForEach-Object { $_.MainWindowTitle } |
-    Where-Object { $_ -match "\.(pbix|pbip)" }
+    Select-Object Id, MainWindowTitle
 ```
 
-If the title doesn't include the path (some OS/version combinations), use:
+> **Note:** The Store version of PBI Desktop (from Microsoft Store / WindowsApps) does not expose the file path in the window title. Use the msmdsrv command line approach instead.
+
+**Step 3 — Check recent files from registry:**
 
 ```powershell
-# Get full path from process command line (requires admin or same user)
-Get-WmiObject Win32_Process -Filter "Name='PBIDesktop.exe'" |
-    Select-Object ProcessId, CommandLine
-```
-
-Or check recent files from the registry:
-
-```powershell
-# Recent PBI Desktop files from registry
 Get-ItemProperty "HKCU:\Software\Microsoft\Microsoft Power BI Desktop\Recent File List" |
     Select-Object -Property * -ExcludeProperty PS*
 ```
 
 ### Editing PBIP Metadata Files (Connection, Report, Model)
 
-For `.pbip` projects, metadata files are human-readable JSON/TMDL on disk. Read and modify them directly with standard file tools.
+For `.pbip` projects, metadata files are human-readable JSON/TMDL on disk and can be read and modified directly.
 
 **Common targets:**
 
-| File | Purpose |
-|------|---------|
-| `<Name>.Report/definition.pbir` | Report-to-model connection (`byPath` or `byConnection`) |
-| `<Name>.Report/definition/report.json` | Report-level settings, theme, filters |
-| `<Name>.SemanticModel/definition/*.tmdl` | Model metadata (tables, measures, relationships) |
-| `<Name>.SemanticModel/definition/expressions.tmdl` | M/Power Query shared expressions and parameters |
+| File | Purpose | Skill |
+|------|---------|-------|
+| `<Name>.Report/definition.pbir` | Report-to-model connection (`byPath` or `byConnection`) | `pbip` |
+| `<Name>.Report/definition/report.json` | Report-level settings, theme, filters | `pbir-format` |
+| `<Name>.SemanticModel/definition/*.tmdl` | Model metadata (tables, measures, relationships) | `tmdl` |
+| `<Name>.SemanticModel/definition/expressions.tmdl` | M/Power Query shared expressions and parameters | `tmdl` |
 
-**Example -- read and modify a connection string in `definition.pbir`:**
-
-```powershell
-$pbirPath = "C:\Projects\MyReport.Report\definition.pbir"
-$pbir = Get-Content $pbirPath -Raw | ConvertFrom-Json
-
-# Inspect current connection
-$pbir.datasetReference | ConvertTo-Json -Depth 5
-
-# Change from byPath to byConnection (thin report)
-$pbir.datasetReference = @{
-    byConnection = @{
-        connectionString = "powerbi://api.powerbi.com/v1.0/myorg/MyWorkspace"
-        pbiModelDatabaseName = "MySemanticModel"
-        pbiModelVirtualServerName = "sobe_wowvirtualserver"
-        connectionType = "pbiServiceLive"
-    }
-}
-
-$pbir | ConvertTo-Json -Depth 10 | Set-Content $pbirPath
-```
-
-**Example -- read a TMDL file to inspect or edit a measure:**
-
-```powershell
-$tmdlPath = "C:\Projects\MyReport.SemanticModel\definition\tables\Sales.tmdl"
-Get-Content $tmdlPath | Select-String "measure|formatString|displayFolder"
-```
-
-> Use the `tmdl` and `pbir-format` skills (pbip plugin) for full syntax reference on these files.
+For syntax, structure, and editing patterns for these files, load the relevant skill from the **pbip plugin**:
+- **`pbip`** -- project structure, file types, `.pbir` connection, forking
+- **`pbir-format`** -- `report.json`, `visual.json`, themes, filters, PBIR JSON schemas
+- **`tmdl`** -- TMDL syntax, measures, columns, roles, relationships
 
 ### No Hot-Reload — Close and Reopen Required
 
