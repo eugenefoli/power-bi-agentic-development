@@ -906,6 +906,225 @@ $model.Tables.Remove($model.Tables["Time Intelligence"])
 ```
 
 
+## KPIs
+
+Not worth implementing via TOM. KPI objects (`Measure.KPI`) attach goal/status/trend measures to a base measure for use in SSAS-era clients (Excel PivotTables, SSRS). They are unsupported or ignored by Power BI visuals and have no effect in modern report design. Use conditional formatting measures and visual calculations instead.
+
+---
+
+## Direct Lake Partitions
+
+Direct Lake is a Power BI / Fabric storage mode where the model reads directly from OneLake Delta tables without import. Direct Lake partitions use `EntityPartitionSource` instead of `MPartitionSource`.
+
+### Read Direct Lake partition details
+
+```powershell
+foreach ($t in $model.Tables) {
+    foreach ($p in $t.Partitions) {
+        if ($p.Source -is [Microsoft.AnalysisServices.Tabular.EntityPartitionSource]) {
+            $src = [Microsoft.AnalysisServices.Tabular.EntityPartitionSource]$p.Source
+            Write-Output "[$($t.Name)] Direct Lake: Schema=$($src.SchemaName) Entity=$($src.EntityName)"
+        }
+    }
+}
+```
+
+### Properties
+
+| Property | Description |
+|----------|-------------|
+| `EntityName` | Delta table name in the lakehouse |
+| `SchemaName` | Schema (e.g. `dbo` for warehouse, empty for lakehouse) |
+| `ExpressionSource` | Named expression with the lakehouse connection |
+
+### Fallback mode
+
+Direct Lake models fall back to DirectQuery when a query can't be served from the in-memory cache. Check the fallback setting on the model:
+
+```powershell
+# DirectLakeBehavior: Automatic (default), DirectLakeOnly, DirectQueryOnly
+Write-Output "DirectLake fallback: $($model.DirectLakeBehavior)"
+# Set to prevent fallback (queries fail instead of falling back to DirectQuery)
+$model.DirectLakeBehavior = [Microsoft.AnalysisServices.Tabular.DirectLakeBehavior]::DirectLakeOnly
+$model.SaveChanges()
+```
+
+---
+
+## Export Model (TMSL / TMDL)
+
+Export the current in-memory model to BIM (TMSL JSON) or TMDL on disk — useful for snapshotting the live state, passing to `te` (Tabular Editor CLI) or `fab` (Fabric CLI) for deployment.
+
+### Export as BIM (TMSL JSON)
+
+```powershell
+$db = $server.Databases[0]
+
+# Save to .bim file
+$db.Model.SaveChanges()   # ensure latest state
+$bimPath = "C:\Users\$env:USERNAME\Desktop\export.bim"
+[Microsoft.AnalysisServices.Tabular.TmdlSerializer]  # not available for BIM; use ScriptCreateOrReplace
+$tmsl = [Microsoft.AnalysisServices.Scripting.ScriptingOptions]::new()
+# Simplest approach: use Server.Execute to generate the script
+$scriptXml = @"
+<Alter xmlns="http://schemas.microsoft.com/analysisservices/2003/engine" AllowCreate="true" ObjectExpansion="ExpandFull">
+  <Object><DatabaseID>$($db.ID)</DatabaseID></Object>
+</Alter>
+"@
+# Or use Tabular Editor CLI to export from the running instance:
+# TabularEditor.exe "localhost:$port" "$($db.Name)" -B "$bimPath"
+Write-Output "Use: TabularEditor.exe 'localhost:$port' '$($db.Name)' -B '$bimPath'"
+```
+
+The cleanest export path is via the `te` (Tabular Editor 2 CLI) or `fab` CLI:
+
+```bash
+# Export BIM via Tabular Editor CLI (run in PowerShell after finding port)
+TabularEditor.exe "localhost:$port" "$dbName" -B "C:\export\model.bim"
+
+# Export as TMDL folder via Tabular Editor CLI
+TabularEditor.exe "localhost:$port" "$dbName" -T "C:\export\definition"
+
+# If deployed to Fabric, export via fab CLI (see fabric-cli skill)
+fab export "Workspace.Workspace/ModelName.SemanticModel" -o ./export -f
+```
+
+### Export as TMDL (TOM Serializer — requires newer TOM DLL)
+
+```powershell
+# TmdlSerializer is available in newer Microsoft.AnalysisServices NuGet versions
+$tmdlFolder = "C:\Users\$env:USERNAME\Desktop\export-tmdl"
+[Microsoft.AnalysisServices.Tabular.TmdlSerializer]::SerializeModelToFolder($db.Model, $tmdlFolder)
+Write-Output "TMDL exported to $tmdlFolder"
+```
+
+> If `TmdlSerializer` is not found, your TOM DLL is too old. Update the NuGet package or use Tabular Editor CLI as shown above.
+
+---
+
+## Server Timings and Query Plan
+
+Re-execute a captured visual query with server timing properties to understand storage engine vs formula engine time. Pairs with the `query-listener` agent — capture the query first, then profile it here.
+
+### Enable server timings
+
+```powershell
+$conn = New-Object Microsoft.AnalysisServices.AdomdClient.AdomdConnection
+$conn.ConnectionString = "Data Source=localhost:$port"
+$conn.Open()
+
+$cmd = $conn.CreateCommand()
+$cmd.CommandText = @"
+DEFINE
+    VAR __DS0FilterTable = FILTER(KEEPFILTERS(VALUES('Date'[Year])), 'Date'[Year] = 2024)
+EVALUATE
+    SUMMARIZECOLUMNS('Date'[Month], __DS0FilterTable, "Total", [Total Revenue])
+"@
+
+# Request server timings via connection property
+$cmd.Properties.Add(New-Object Microsoft.AnalysisServices.AdomdClient.AdomdProperty "ServerTimings", 1)
+$cmd.Properties.Add(New-Object Microsoft.AnalysisServices.AdomdClient.AdomdProperty "QueryPlan", 1)
+
+$reader = $cmd.ExecuteReader([Microsoft.AnalysisServices.AdomdClient.AdomdExecuteBehavior]::Default)
+
+# Read result rows
+while ($reader.Read()) {
+    for ($i = 0; $i -lt $reader.FieldCount; $i++) {
+        Write-Host "$($reader.GetName($i)): $($reader.GetValue($i))"
+    }
+}
+$reader.Close()
+
+# Server timings come back in a separate rowset
+# Access via reader.NextResult() to get timing data
+$conn.Close()
+```
+
+### Read timings from DISCOVER_SESSIONS after a query
+
+The simpler approach — after a query executes, read timing from the DMV:
+
+```powershell
+$c = $conn.CreateCommand()
+$c.CommandText = @"
+SELECT SESSION_ID,
+       SESSION_LAST_COMMAND_ELAPSED_TIME_MS,
+       SESSION_LAST_COMMAND_CPU_TIME_MS,
+       SESSION_LAST_COMMAND_START_TIME,
+       SESSION_LAST_COMMAND_END_TIME
+FROM `$SYSTEM.DISCOVER_SESSIONS
+WHERE SESSION_LAST_COMMAND_ELAPSED_TIME_MS > 0
+"@
+$reader = $c.ExecuteReader()
+while ($reader.Read()) {
+    Write-Output "Elapsed: $($reader.GetValue(1))ms | CPU: $($reader.GetValue(2))ms"
+}
+$reader.Close()
+```
+
+---
+
+## VertiPaq Column Statistics (DMV)
+
+Query the AS storage engine DMVs to get column cardinality, dictionary size, and data size — the same data VertiPaq Analyzer uses. Useful for identifying bloated columns and memory hotspots.
+
+```powershell
+$c = $conn.CreateCommand()
+$c.CommandText = @"
+SELECT
+    DIMENSION_NAME         AS TableName,
+    ATTRIBUTE_NAME         AS ColumnName,
+    DICTIONARY_SIZE        AS DictionaryBytes,
+    USED_SIZE              AS DataBytes,
+    SEGMENT_NUMBER         AS Segments,
+    RECORDS_COUNT          AS Rows
+FROM `$SYSTEM.DISCOVER_STORAGE_TABLE_COLUMN_SEGMENTS
+WHERE LEFT(DIMENSION_NAME, 1) <> '$'
+ORDER BY USED_SIZE DESC
+"@
+$reader = $c.ExecuteReader()
+Write-Output "Table`t`tColumn`t`tDict(KB)`tData(KB)`tRows"
+while ($reader.Read()) {
+    $table = $reader.GetValue(0)
+    $col   = $reader.GetValue(1)
+    $dict  = [Math]::Round($reader.GetValue(2) / 1024, 1)
+    $data  = [Math]::Round($reader.GetValue(3) / 1024, 1)
+    $rows  = $reader.GetValue(5)
+    Write-Output "$table`t$col`t$dict`t$data`t$rows"
+}
+$reader.Close()
+```
+
+### Column cardinality (distinct values)
+
+```powershell
+$c.CommandText = @"
+SELECT
+    DIMENSION_NAME  AS TableName,
+    ATTRIBUTE_NAME  AS ColumnName,
+    CARDINALITY     AS DistinctValues
+FROM `$SYSTEM.DISCOVER_STORAGE_TABLE_COLUMNS
+WHERE LEFT(DIMENSION_NAME, 1) <> '$'
+ORDER BY CARDINALITY DESC
+"@
+```
+
+### Total model memory by table
+
+```powershell
+$c.CommandText = @"
+SELECT
+    DIMENSION_NAME                     AS TableName,
+    SUM(USED_SIZE + DICTIONARY_SIZE)   AS TotalBytes
+FROM `$SYSTEM.DISCOVER_STORAGE_TABLE_COLUMN_SEGMENTS
+WHERE LEFT(DIMENSION_NAME, 1) <> '$'
+GROUP BY DIMENSION_NAME
+ORDER BY TotalBytes DESC
+"@
+```
+
+---
+
 ## Saving All Changes
 
 After any combination of the above operations:
@@ -997,4 +1216,143 @@ foreach ($t in $model.Tables | Where-Object { -not $_.IsHidden }) {
         }
     }
 }
+```
+
+
+## User Defined Functions (DAX UDFs)
+
+DAX User Defined Functions allow reusable parameterized DAX expressions callable from measures. Requires compatibility level 1702+.
+
+> **Compatibility check:** UDFs require CL 1702+. Check before use:
+> ```powershell
+> if ($db.CompatibilityLevel -lt 1702) { Write-Output "UDFs not supported. CL: $($db.CompatibilityLevel)" }
+> ```
+
+> **TOM DLL version:** The `FunctionParameter` and `UserDefinedFunction` classes were added to TOM in later NuGet versions. If `New-Object Microsoft.AnalysisServices.Tabular.UserDefinedFunction` fails, update to a newer `ms-fabric-cli` NuGet package. Use reflection to verify:
+> ```powershell
+> [Microsoft.AnalysisServices.Tabular.Model].GetProperty('UserDefinedFunctions') -ne $null
+> ```
+
+> **Preview feature:** UDFs must be enabled in Power BI Desktop before use: **File > Options > Preview features > DAX user-defined functions**.
+
+### Parameter Types
+
+Each parameter has three optional hints: **type**, **subtype**, and **parameterMode**.
+
+**Type** — what the parameter accepts:
+
+| Type | Family | Description | TMDL keyword equivalent |
+|------|--------|-------------|------------------------|
+| `AnyVal` | Value | Any scalar or table (default if omitted) | `ANYVAL` |
+| `Scalar` | Value | Scalar value; add a subtype to narrow | (+ subtype, see below) |
+| `Table` | Value | Table value | — |
+| `AnyRef` | Expression | Any reference (lazy) | `EXPR` (approximate) |
+| `MeasureRef` | Expression | Measure reference (lazy) | `EXPR` |
+| `ColumnRef` | Expression | Column reference (lazy) | `COLUMN` |
+| `TableRef` | Expression | Table reference (lazy) | — |
+| `CalendarRef` | Expression | Calendar reference (lazy) | — |
+
+**Subtype** (only for `Scalar` type):
+
+| Subtype | TOM `DataType` | Description | TMDL equivalent |
+|---------|----------------|-------------|-----------------|
+| `Variant` | `Variant` | Any scalar | `ANYVAL` |
+| `Int64` | `Int64` | Whole number | `INT64` |
+| `Decimal` | `Decimal` | Fixed-precision decimal | — |
+| `Double` | `Double` | Floating-point decimal | — |
+| `Numeric` | `Double`/`Decimal`/`Int64` | Any number | `SCALAR NUMERIC` |
+| `String` | `String` | Text | `STRING` |
+| `DateTime` | `DateTime` | Date/time | — |
+| `Boolean` | `Boolean` | TRUE/FALSE | — |
+
+**ParameterMode:**
+
+| Mode | Evaluation | Use when |
+|------|-----------|----------|
+| `val` (default) | Eager — evaluated once before calling | Simple scalars, tables |
+| `expr` | Lazy — evaluated inside the function, in function's context | Measure refs, context-sensitive expressions |
+
+> **In TOM:** Scalar types map directly to `DataType` enum values. Expression types (`MeasureRef`, `ColumnRef`, etc.) do not use `DataType` — they require a `FunctionParameterType` property that may not be in older TOM assemblies. **Prefer authoring expression-type parameters in TMDL** (`tmdl` skill → `references/tmdl-file-examples.md`) and reading them back via TOM. See [MS Learn UDF docs](https://learn.microsoft.com/dax/best-practices/dax-user-defined-functions) for the canonical reference.
+
+### Create (scalar parameter example)
+
+```powershell
+$udf = New-Object Microsoft.AnalysisServices.Tabular.UserDefinedFunction
+$udf.Name = "BandValue"
+$udf.Description = "Bands a numeric value into Low / Medium / High"
+
+# Scalar numeric parameter
+$p1 = New-Object Microsoft.AnalysisServices.Tabular.FunctionParameter
+$p1.Name = "Value"
+$p1.DataType = [Microsoft.AnalysisServices.Tabular.DataType]::Double
+$udf.Parameters.Add($p1)
+
+$p2 = New-Object Microsoft.AnalysisServices.Tabular.FunctionParameter
+$p2.Name = "LowThreshold"
+$p2.DataType = [Microsoft.AnalysisServices.Tabular.DataType]::Double
+$udf.Parameters.Add($p2)
+
+$p3 = New-Object Microsoft.AnalysisServices.Tabular.FunctionParameter
+$p3.Name = "HighThreshold"
+$p3.DataType = [Microsoft.AnalysisServices.Tabular.DataType]::Double
+$udf.Parameters.Add($p3)
+
+# Body — parameters referenced with [@ParamName] syntax
+$udf.Expression = 'IF([@Value] < [@LowThreshold], "Low", IF([@Value] >= [@HighThreshold], "High", "Medium"))'
+
+$model.UserDefinedFunctions.Add($udf)
+$model.SaveChanges()
+```
+
+### Create (MeasureRef parameter — lazy expression)
+
+For `MeasureRef` / `ColumnRef` parameters, prefer TMDL authoring over TOM — the `FunctionParameterType` API for expression types is not reliably available in all TOM DLL versions. Author in `functions.tmdl` using the `tmdl` skill and let TOM read them back.
+
+If you need TOM: `DataType.Unknown` is the closest approximation for expression types, but behaviour may vary:
+
+```powershell
+$udf = New-Object Microsoft.AnalysisServices.Tabular.UserDefinedFunction
+$udf.Name = "TimeIntelligence.MTD"
+$udf.Description = "Wraps a measure reference in month-to-date CALCULATE"
+
+$p = New-Object Microsoft.AnalysisServices.Tabular.FunctionParameter
+$p.Name = "measureReference"
+# MeasureRef is a lazy expression type — DataType.Unknown is an approximation;
+# use TMDL authoring for reliable expression-type parameters
+$p.DataType = [Microsoft.AnalysisServices.Tabular.DataType]::Unknown
+$udf.Parameters.Add($p)
+
+$udf.Expression = 'CALCULATE([@measureReference], DATESMTD(''Date''[Date]))'
+
+$model.UserDefinedFunctions.Add($udf)
+$model.SaveChanges()
+```
+
+### Read
+
+```powershell
+foreach ($udf in $model.UserDefinedFunctions) {
+    Write-Output "UDF: [$($udf.Name)]"
+    foreach ($p in $udf.Parameters) {
+        Write-Output "  Param: $($p.Name) DataType=$($p.DataType)"
+    }
+    Write-Output "  Body: $($udf.Expression)"
+}
+```
+
+### Call in DAX
+
+```dax
+-- Scalar params: pass values directly
+EVALUATE ROW("Band", [BandValue](125, 100, 200))
+
+-- EXPR params: pass a measure reference
+EVALUATE ROW("MTD", [TimeIntelligence.MTD]([Total Revenue]))
+```
+
+### Delete
+
+```powershell
+$model.UserDefinedFunctions.Remove($model.UserDefinedFunctions["BandValue"])
+$model.SaveChanges()
 ```

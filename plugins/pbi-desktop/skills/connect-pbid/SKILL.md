@@ -1,7 +1,7 @@
 ---
 name: connect-pbid
-version: 0.8.3
-description: This skill should be used automatically when the user wants to work with Power BI Desktop and the Tabular Editor CLI or Power BI MCP server is not available. Use this skill when the user asks to "connect to Power BI Desktop", "read my PBI model", "enumerate tables in Power BI", "query PBI Desktop with DAX", "modify PBI Desktop model", "find the Analysis Services port", "use TOM with Power BI Desktop", "inspect my Power BI model", "add a measure to PBI", "create a relationship", "change column properties", "find the file path of my Power BI file", "edit the connection string", "modify report metadata", "change the connected model", "edit definition.pbir", or mentions connecting to the local Analysis Services instance that Power BI Desktop runs or editing PBIP/PBIX metadata files. Provides step-by-step guidance for connecting via TOM and ADOMD.NET in PowerShell, finding file paths, and editing metadata files directly on disk.
+version: 0.8.5
+description: This skill should be used automatically when the user wants to work with Power BI Desktop and the Tabular Editor CLI or Power BI MCP server is not available. Use this skill when the user asks to "connect to Power BI Desktop", "read my PBI model", "enumerate tables in Power BI", "query PBI Desktop with DAX", "modify PBI Desktop model", "find the Analysis Services port", "use TOM with Power BI Desktop", "inspect my Power BI model", "add a measure to PBI", "create a relationship", "change column properties", "find the file path of my Power BI file", "edit the connection string", "modify report metadata", "change the connected model", "edit definition.pbir", "capture visual queries", "intercept DAX queries", "listen for visual queries", "see what queries my visuals generate", "create a user defined function", "add a DAX UDF", or mentions connecting to the local Analysis Services instance that Power BI Desktop runs, editing PBIP/PBIX metadata files, or capturing live visual queries. Provides step-by-step guidance for connecting via TOM and ADOMD.NET in PowerShell, finding file paths, editing metadata files, capturing visual queries, and managing UDFs.
 ---
 
 # Connect to Power BI Desktop (Local Analysis Services)
@@ -630,9 +630,14 @@ To retrieve current TOM/ADOMD.NET reference docs, use `microsoft_docs_search` + 
 
 **Skill references:**
 
-- [TOM Object Types CRUD](./references/tom-object-types.md) - Full create/read/update/delete examples for every object type
+- [TOM Object Types CRUD](./references/tom-object-types.md) - Full CRUD examples for every object type including UDFs
+- [Query Listener](./references/query-listener.md) - Capture live visual DAX queries via DMV polling; interpret query structure, timings, filter patterns
 - [Refresh Model](./references/refresh-model.md) - All refresh methods (TMSL, TOM RequestRefresh, ADOMD.NET)
 - [macOS + Parallels Guide](./references/parallels-macos.md) - Connecting from macOS when PBI Desktop runs in a Parallels VM
+
+**Agents:**
+
+- **`query-listener`** -- Dispatch to capture live visual DAX queries in real time; polls `DISCOVER_SESSIONS` and reports query text + timings
 
 **Example scripts in `scripts/`:**
 
