@@ -1,0 +1,9 @@
+{
+  "name": "semantic-models",
+  "version": "0.8.2",
+  "description": "Skills for auditing and standardizing naming conventions in Power BI semantic models.",
+  "author": { "name": "Kurt Buhler" },
+  "repository": "https://github.com/data-goblin/power-bi-agentic-development",
+  "license": "GPL-3.0",
+  "keywords": ["power-bi", "semantic-model", "naming-conventions"]
+}

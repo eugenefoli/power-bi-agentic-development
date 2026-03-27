@@ -1,0 +1,9 @@
+{
+  "name": "pbi-desktop",
+  "version": "0.8.2",
+  "description": "Connect to Power BI Desktop's local Analysis Services instance via TOM and ADOMD.NET. No MCP server required.",
+  "author": { "name": "Kurt Buhler" },
+  "repository": "https://github.com/data-goblin/power-bi-agentic-development",
+  "license": "GPL-3.0",
+  "keywords": ["power-bi", "analysis-services", "tom", "adomd"]
+}
