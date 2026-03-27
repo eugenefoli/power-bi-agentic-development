@@ -14,7 +14,17 @@ Converting between thick/thin reports and re-binding reports to different semant
 
 Separate the report from the semantic model to deploy them independently.
 
-### Steps to convert thick reports to thin reports
+### Using pbir CLI (recommended)
+
+If the `pbir` CLI (v0.9.2+) is available, use the dedicated subcommand:
+
+```bash
+pbir report split-from-thick ThickReport --target "WorkspaceName/ModelName"
+```
+
+This automatically handles the `definition.pbir` update, folder separation, and field validation. Use the manual steps below only as a fallback when `pbir` is not installed.
+
+### Manual steps (without pbir CLI)
 
 1. **Get target model info** using Fabric CLI:
 

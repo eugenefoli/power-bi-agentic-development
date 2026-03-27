@@ -73,7 +73,7 @@ Six patterns for referencing fields in queries and expressions:
 | Hierarchy level | `{"HierarchyLevel": {"Expression": {"Hierarchy": {"Expression": {"SourceRef": {"Entity": "Table"}}, "Hierarchy": "Name"}}, "Level": "Level"}}` |
 | SparklineData | `{"SparklineData": {"Measure": {"Measure": {...}}, "Groupings": [{"Column": {...}}]}}` |
 
-**Aggregation function codes:** 0=Sum, 1=Avg, 2=Min, 3=Max, 4=Count, 5=DistinctCount
+**Aggregation function codes (QueryAggregateFunction):** 0=Sum, 1=Average, 2=DistinctCount, 3=Min, 4=Max, 5=Count, 6=Median, 7=StandardDeviation, 8=Variance
 
 ## Query Roles by Visual Type
 

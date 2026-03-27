@@ -83,7 +83,7 @@ SUMMARIZECOLUMNS(
 | Slicer | Values | - |
 | KPI | TrendLine | Indicator, Goal |
 | Table | Values (dims) | Values (measures) |
-| Scatter | X, Y | Size, Gradient |
+| Scatter | Category, X, Y | Size, Tooltips |
 
 ### 3. Filters → Variables
 
@@ -344,11 +344,11 @@ SUMMARIZECOLUMNS(
     'Date'[Month],
     'Date'[Month Number],
     "Budget_vs__Turnover____", 'Budget'[Budget vs. Turnover (%)],
-    "Formatting", IGNORE('_Demo of SVG Measures'[Formatting])
+    "Formatting", '_Demo of SVG Measures'[Formatting]
 )
 ```
 
-Note: Extension measures typically use `IGNORE()` wrapper.
+Note: When a chart has grouping columns (like this line chart with `'Date'[Month]`), extension measures are included **without** `IGNORE()`. Use `IGNORE()` only for visuals with **no** grouping columns (cards, KPIs) to prevent a blank row.
 
 ## Quick reference
 
@@ -368,7 +368,8 @@ Note: Extension measures typically use `IGNORE()` wrapper.
 
 - `SourceRef.Schema = "extension"`
 - Add to DEFINE section
-- Include in SUMMARIZECOLUMNS (usually with `IGNORE()`)
+- Include in SUMMARIZECOLUMNS without `IGNORE()` (charts with grouping columns)
+- Use `IGNORE()` only when there are no grouping columns (cards/KPIs)
 
 **Alias naming:**
 

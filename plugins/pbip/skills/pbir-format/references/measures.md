@@ -837,12 +837,12 @@ Extended semantic information:
 {
   "name": "Product Image URL",
   "dataType": "Text",
-  "dataCategory": "ImageURL",
+  "dataCategory": "ImageUrl",
   "expression": "\"https://cdn.example.com/\" & [Product Code] & \".jpg\""
 }
 ```
 
-**Common categories:** `WebURL`, `ImageURL`, `Barcode`
+**Common categories:** `WebUrl`, `ImageUrl`, `Barcode`
 
 ### Measure Templates
 
@@ -1047,10 +1047,10 @@ Check data type matches property:
 Check return format:
 ```dax
 // For colors - use theme colors or hexes:
-"bad"      // Preferred (theme color)
-"#FF0000"  // OK but prefer theme colors instead
-"red"      // Works, but not preferred
-"rgb(255,0,0)"  // Wrong format
+"bad"           // Preferred (theme color)
+"#FF0000"       // OK but prefer theme colors instead
+"rgb(255,0,0)"  // Wrong format — not supported
+// CSS color names like "red" are NOT documented as supported formats
 ```
 
 Check selector for per-point evaluation:

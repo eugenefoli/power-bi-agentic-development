@@ -438,6 +438,46 @@ measure '% Customer Growth' =
 { "entity": "Customer", "name": "# Active Customers" }
 ```
 
+## Sort Definitions
+
+`sortDefinition` blocks inside visual.json contain `SourceRef.Entity` references that must be updated during table or column renames. These are **commonly missed** because they live outside the `queryState` projections.
+
+```json
+// Before (in visual.json query.sortDefinition)
+"sortDefinition": {
+  "sort": [{
+    "field": {
+      "Measure": {
+        "Expression": {
+          "SourceRef": {"Entity": "Customers"}
+        },
+        "Property": "Revenue"
+      }
+    },
+    "direction": "Descending"
+  }],
+  "isDefaultSort": true
+}
+
+// After
+"sortDefinition": {
+  "sort": [{
+    "field": {
+      "Measure": {
+        "Expression": {
+          "SourceRef": {"Entity": "Customer"}
+        },
+        "Property": "Revenue"
+      }
+    },
+    "direction": "Descending"
+  }],
+  "isDefaultSort": true
+}
+```
+
+**Note:** `sortDefinition` does not use `queryRef` — only `SourceRef.Entity` and `Property`. Search for `"sortDefinition"` across all `visual.json` files to find every instance.
+
 ## Edge Cases
 
 ### Names with Special Characters

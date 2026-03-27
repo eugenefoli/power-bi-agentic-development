@@ -643,13 +643,16 @@ This is the JSON Power BI UI generates for conditional formatting rules. It's co
   - 3 = LessThan
   - 4 = LessThanOrEqual
 
-- **Aggregation.Function values:**
+- **Aggregation.Function values (QueryAggregateFunction):**
   - 0 = Sum
-  - 1 = Avg
-  - 2 = Min
-  - 3 = Max
-  - 4 = Count
-  - 5 = DistinctCount
+  - 1 = Average
+  - 2 = DistinctCount
+  - 3 = Min
+  - 4 = Max
+  - 5 = Count
+  - 6 = Median
+  - 7 = StandardDeviation
+  - 8 = Variance
 
 - **ScopedEval + AllRolesRef:**
   - Evaluates expression at ALL level (ignores all filters)

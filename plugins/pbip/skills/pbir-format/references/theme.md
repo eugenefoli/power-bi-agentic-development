@@ -101,6 +101,32 @@ Override wildcard defaults for specific visual types:
 2. **Visual Type** (e.g., `["textbox"]["*"]`) - Overrides wildcard for that type
 3. **Visual Instance** (in `visualContainerObjects`) - Overrides theme for specific visual
 
+### visualStyles Structure
+
+The two-level key structure is `[visualType][state]`. The second level is a **state**, not an instance selector:
+
+| State key | Meaning |
+|-----------|---------|
+| `"*"` | Default state (normal rendering) — most common |
+| `"hover"` | Hover state formatting |
+| `"press"` | Press/click state formatting |
+| `"selected"` | Selected state formatting |
+
+Example using hover state for slicers:
+
+```json
+{
+  "visualStyles": {
+    "slicer": {
+      "*": {"items": [{"fontColor": {"solid": {"color": "#000000"}}}]},
+      "hover": {"items": [{"fontColor": {"solid": {"color": "#118DFF"}}}]}
+    }
+  }
+}
+```
+
+Some real theme files also use a third-level `"*"` catch-all key for generic visual properties like `wordWrap` and `rectangleRoundedCurve`.
+
 ## Common Theme Properties
 
 ### Container Formatting (visualContainerObjects)
