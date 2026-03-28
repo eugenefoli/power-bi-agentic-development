@@ -1,5 +1,5 @@
 {
-  "description": "Validates JSON syntax in PBIP project files after every Write/Edit",
+  "description": "Validates PBIP project files (JSON syntax + TMDL structure) after every Write/Edit",
   "hooks": {
     "PostToolUse": [
       {
@@ -8,6 +8,11 @@
           {
             "type": "command",
             "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/validate-pbip-json.sh",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/validate-tmdl.sh",
             "timeout": 10
           }
         ]
