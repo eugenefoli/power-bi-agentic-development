@@ -43,7 +43,11 @@ done < <(echo "$COMMAND" | grep -oE "'[^']+\.(json|pbir)'" 2>/dev/null | tr -d "
 [[ ${#CANDIDATES[@]} -eq 0 ]] && exit 0
 
 # Deduplicate
-CANDIDATES=($(printf '%s\n' "${CANDIDATES[@]}" | sort -u))
+DEDUPED=()
+while IFS= read -r path; do
+    [[ -n "$path" ]] && DEDUPED+=("$path")
+done < <(printf '%s\n' "${CANDIDATES[@]}" | sort -u)
+CANDIDATES=("${DEDUPED[@]}")
 
 # Filter to PBIR project files and validate
 ERRORS=()

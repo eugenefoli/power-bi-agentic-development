@@ -3,8 +3,8 @@
 # PostToolUse hook: validate TMDL syntax after Bash commands that modify TMDL files
 #
 # Catches modifications via python, python3, sed, awk, jq, echo, cat, cp, mv, etc.
-# Extracts file paths from the Bash command, filters to semantic model directories,
-# and validates TMDL structure with tmdl-validate.
+# Extracts .tmdl file paths from the Bash command and validates TMDL structure
+# with tmdl-validate. No directory filter; .tmdl is a rare enough extension.
 #
 # Exit codes:
 #   0 - OK or not applicable
@@ -60,22 +60,19 @@ done < <(echo "$COMMAND" | grep -oE "'[^']+\.tmdl'" 2>/dev/null | tr -d "'")
 [[ ${#CANDIDATES[@]} -eq 0 ]] && exit 0
 
 # Deduplicate
-CANDIDATES=($(printf '%s\n' "${CANDIDATES[@]}" | sort -u))
+DEDUPED=()
+while IFS= read -r path; do
+    [[ -n "$path" ]] && DEDUPED+=("$path")
+done < <(printf '%s\n' "${CANDIDATES[@]}" | sort -u)
+CANDIDATES=("${DEDUPED[@]}")
 
-# Filter to semantic model directories and validate
+# Validate all .tmdl candidates
 ERRORS=()
 VALIDATED=0
 
 for FILE_PATH in "${CANDIDATES[@]}"; do
     # Normalize path separators
     FILE_PATH="${FILE_PATH//\\//}"
-
-    # Must be inside a semantic model directory
-    if [[ ! "$FILE_PATH" =~ \.SemanticModel/ ]] && \
-       [[ ! "$FILE_PATH" =~ \.Dataset/ ]] && \
-       [[ ! "$FILE_PATH" =~ /definition/ ]]; then
-        continue
-    fi
 
     # File must exist
     [[ -f "$FILE_PATH" ]] || continue

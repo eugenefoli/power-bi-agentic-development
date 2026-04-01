@@ -28,21 +28,9 @@
           },
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/validate-pbir-bash.sh",
-            "timeout": 10,
-            "if": "Bash(*.pbir*)"
-          },
-          {
-            "type": "command",
             "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/validate-tmdl-bash.sh",
             "timeout": 10,
-            "if": "Bash(*.SemanticModel/*.tmdl*)"
-          },
-          {
-            "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/validate-tmdl-bash.sh",
-            "timeout": 10,
-            "if": "Bash(*.Dataset/*.tmdl*)"
+            "if": "Bash(*.tmdl*)"
           }
         ]
       }

@@ -3,11 +3,11 @@
 # PostToolUse hook: validate TMDL structural syntax after Write/Edit
 #
 # Runs tmdl-validate binary on any .tmdl file inside a .SemanticModel/
-# or .Dataset/ directory. Currently WARN-ONLY (exit 0 with message).
+# or .Dataset/ directory. Blocks on validation errors (exit 2).
 #
 # NOTE: This is a lightweight structural linter, not a full TMDL parser.
 # It will be superseded by `te validate` when the Tabular Editor CLI ships.
-# To make this hook blocking instead of warning, change `exit 0` to `exit 2`
+# To make this hook warn-only instead of blocking, change `exit 2` to `exit 0`
 # in the validation failure block at the bottom of this script.
 #
 # Requires: tmdl-validate binary in $CLAUDE_PROJECT_DIR/tools/tmdl-validate/target/release/
