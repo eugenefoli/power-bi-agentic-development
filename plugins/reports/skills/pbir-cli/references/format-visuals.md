@@ -323,34 +323,6 @@ pbir visuals format-field "Visual.Visual" --field "Sales.Revenue" --color "#118D
 pbir visuals format-state "Visual.Visual" --state hover --color "#E3F2FD"
 ```
 
-## Python Script for Complex Formatting
-
-For formatting logic requiring iteration, conditionals, or visual-type filtering:
-
-```bash
-pbir script --execute "
-for page in context.report.pages:
-    for visual in page.visuals:
-        if visual.visual_type in ('lineChart', 'barChart', 'columnChart', 'clusteredBarChart'):
-            visual.title.show = True
-            visual.title.fontSize = 14
-            visual.border.show = True
-            visual.border.radius = 8
-            visual.save()
-" "Report.Report"
-```
-
-For properties needing selectors or complex JSON values:
-
-```bash
-pbir script --execute "
-v = context.visual
-v.set_property('lineStyles', 'showMarker', True)
-v.set_property('lineStyles', 'markerSize', 8)
-v.save()
-" "Report.Report/Page.Page/Visual.Visual"
-```
-
 ## Clearing Visual-Level Overrides (Reset to Theme)
 
 When switching themes or enforcing theme consistency, visual-level overrides prevent the theme from taking full effect. Use `pbir visuals clear-formatting` with glob patterns to reset visuals to theme defaults:
@@ -379,6 +351,6 @@ See **`references/apply-theme.md` > Clearing Visual-Level Formatting** for the f
 3. **Theme first**: `pbir theme set-formatting` or `pbir theme push-visual` for changes that should apply broadly
 4. **Clear overrides** (if enforcing theme): Strip visual-level formatting so theme cascade applies cleanly (see above)
 5. **Set bespoke** (only if one-off): `pbir set "...Visual.container.property" --value X`
-6. **Bulk apply** (if needed): use glob patterns (`**/*.Visual`) or `pbir script` for conditional logic
+6. **Bulk apply** (if needed): use glob patterns (`**/*.Visual`) for conditional logic
 7. **Verify**: `pbir visuals format "...Visual"` to confirm source is theme (not visual override) where intended
 8. **Validate**: `pbir validate "Report.Report"`

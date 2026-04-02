@@ -114,31 +114,6 @@ pbir dax measures add "Report.Report" -t _Fmt -n "StatusIcon" \
   --data-type Text
 ```
 
-## Object Model (Bulk Creation)
-
-For creating multiple measures programmatically:
-
-```bash
-pbir script --execute "
-from pbir_object_model import Field
-
-report = context.report
-ext = report.report_extensions
-
-# Add multiple formatting measures
-measures = [
-    ('_Fmt', 'RevenueColor', 'IF([Revenue]>=[Target],\"good\",\"bad\")', 'Text'),
-    ('_Fmt', 'MarginColor', 'IF([Margin]>=0.2,\"good\",IF([Margin]>=0.1,\"neutral\",\"bad\"))', 'Text'),
-    ('_Fmt', 'GrowthColor', 'IF([YoY]>0,\"good\",\"bad\")', 'Text'),
-]
-
-for table, name, expr, dtype in measures:
-    ext.add_measure(table=table, name=name, expression=expr, data_type=dtype)
-
-ext.save()
-" "Report.Report"
-```
-
 ## DAX Function Verification
 
 **CRITICAL: Never invent or assume DAX function names.** Always verify function availability before using them in extension measures. Functions like `LAMBDA`, `MAXA` (2-arg form), and others may not exist or may have different signatures than expected.

@@ -191,31 +191,6 @@ Key types and their primary data roles:
 
 Use `pbir visuals bind "Visual.Visual" --list-roles` to discover roles for any visual type.
 
-## Bulk Binding via Object Model
-
-**Important**: Always set `kind` on `Field()` -- `kind=0` for columns, `kind=1` for measures. The default creates Column bindings, which silently breaks visuals when the field is actually a measure.
-
-```bash
-pbir script --execute "
-from pbir_object_model import Field
-
-page = context.page
-
-# Create visual with fields
-# kind=0 for columns, kind=1 for measures
-page.create_visual(
-    'lineChart',
-    x=20, y=20, width=600, height=400,
-    title='Revenue Trend',
-    fields={
-        'Category': Field('Date', 'Month', kind=0),      # Column
-        'Y': Field('Sales', 'Revenue', kind=1),           # Measure
-        'Legend': Field('Products', 'Category', kind=0),   # Column
-    }
-)
-" "Report.Report/Page.Page"
-```
-
 ## Swapping Fields in Visuals
 
 ### Replace a Field Across the Report

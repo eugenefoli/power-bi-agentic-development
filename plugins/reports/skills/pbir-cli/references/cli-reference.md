@@ -15,7 +15,6 @@ Complete command reference for the pbir CLI. All commands prefixed with `pbir`.
 - [Bookmark Operations](#bookmark-operations)
 - [Annotation Operations](#annotation-operations)
 - [Connection and Fabric](#connection-and-fabric)
-- [Scripting and Automation](#scripting-and-automation)
 - [Configuration and Setup](#configuration-and-setup)
 - [Visual Types Reference](#visual-types-reference)
 
@@ -453,19 +452,6 @@ pbir model "Report.Report" -d -t Sales           # Filter to table
 pbir model "Report.Report" -d -v                 # Full TMDL
 pbir model "Report.Report" -q "EVALUATE VALUES('Sales'[Region])"
 pbir model "Report.Report" -q "EVALUATE 'Sales'" -F json  # JSON output
-```
-
-## Scripting and Automation
-
-```bash
-# Python scripting
-pbir script my_script.py "Report.Report"                     # Run script file
-pbir script --execute "print(context.report.display_name)" "Report.Report"
-pbir script --object-model                                    # Show API docs
-pbir script --object-model -c visual                          # Show Visual docs
-pbir script --list-examples                                   # List examples
-pbir script --example batch-format                            # Show example
-
 ```
 
 ## Configuration and Setup

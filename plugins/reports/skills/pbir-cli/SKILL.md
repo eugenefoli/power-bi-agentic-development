@@ -1,16 +1,11 @@
 ---
 name: pbir-cli
-version: 0.12.0
-description: This skill should only be used if `pbir` CLI is installed and available on PATH; otherwise use the `pbir-format` skill for direct JSON manipulation instead. Advanced Power BI report manipulation using the pbir CLI. Auto-triggers on (1) Power BI report operations (.pbir/.pbip/.pbix), (2) visual/page/theme creation or modification, (3) DAX measures and conditional formatting, (4) report validation and quality checks, (5) bulk operations and theming, (6) Fabric workspace integration. Provides executable scripts for complex workflows, domain-specific references, and reusable templates.
+description: Advanced Power BI report manipulation using pbir CLI and object model. Auto-triggers on (1) Power BI report operations (.pbir/.pbip/.pbix), (2) visual/page/theme creation or modification, (3) DAX measures and conditional formatting, (4) report validation and quality checks, (5) bulk operations and theming, (6) Fabric workspace integration. Provides executable scripts for complex workflows, domain-specific references, and reusable templates.
 ---
 
 # pbir CLI for Power BI Report Management
 
-> **CRITICAL:** `pbir-cli` is currently in closed beta. If `pbir` is not installed, [sign up for the private beta](https://github.com/data-goblin/pbir.tools-private-beta) to request access. Public release is expected before mid-April 2026 at the latest. If `pbir` is not available, invoke the `pbir-format` skill, instead.
-
 Agent-first CLI for comprehensive Power BI report operations. All commands use `pbir`.
-
-> **Recommended:** Install the **pbip** plugin alongside this skill. It provides PostToolUse hooks that validate all PBIR JSON edits (via Write, Edit, and Bash) to catch broken report files early.
 
 ## Path Syntax
 
@@ -29,7 +24,7 @@ Format: `ReportName.Report/PageName.Page/VisualName.Visual`
 
 1. **NEVER edit report JSON files directly.** Always use the CLI (`pbir visuals bind`, `pbir set`, etc.). The CLI handles field type resolution, schema validation, and structural integrity that raw JSON manipulation bypasses. Editing JSON directly is the #1 source of broken reports.
 
-2. **Column vs Measure matters.** Measures bound as Columns (or vice versa) produce "something is wrong with one or more fields" errors in Power BI Desktop that pass schema validation but fail at runtime. The CLI (`pbir visuals bind`) auto-detects extension measures from `reportExtensions.json` and model measures from the semantic model. When auto-detection isn't possible (no model connection, no extension match), the default is Column. Override explicitly with `-t Measure`.
+2. **Column vs Measure matters.** Measures bound as Columns (or vice versa) produce "something is wrong with one or more fields" errors in Power BI Desktop that pass schema validation but fail at runtime. The CLI (`pbir visuals bind`) and object model (`visual.bind_field()`) auto-detect extension measures from `reportExtensions.json` and model measures from the semantic model. When auto-detection isn't possible (no model connection, no extension match), the default is Column. Override explicitly with `-t Measure` in the CLI or `field_type="Measure"` in `bind_field()`.
 
 3. **Use `pbir visuals bind` to fix broken bindings.** To change a field's type from Column to Measure: clear the role, re-add with the correct type:
    ```bash
@@ -41,7 +36,7 @@ Format: `ReportName.Report/PageName.Page/VisualName.Visual`
 
 ### Exploration and Analysis
 
-Understand existing reports before modifying. **Always check page dimensions and existing visual positions before adding or resizing visuals** -- the CLI validates that visuals fit within page bounds, so setting position/size without knowing the page dimensions will cause errors.
+Understand existing reports before modifying. **Always check page dimensions and existing visual positions before adding or resizing visuals** -- the object model validates that visuals fit within page bounds, so setting position/size without knowing the page dimensions will cause errors.
 
 ```bash
 pbir ls                                          # Find all reports
@@ -674,5 +669,4 @@ references/filters.md: filter types (Categorical, TopN, Advanced, RelativeDate),
 references/bookmarks.md: bookmark management, copying, button references
 references/audit-report.md: report quality audit checklist
 references/property-catalogue.md: offline property index (49 types, 15 containers, 12,600+ slots)
-references/bpa.md: Best Practice Analyzer -- rule engine, tiers, scopes, DSL, auto-fix, bpa-ignore
 ```

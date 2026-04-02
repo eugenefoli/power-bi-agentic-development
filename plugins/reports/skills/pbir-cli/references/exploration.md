@@ -84,14 +84,6 @@ pbir theme validate "Report.Report"              # Theme structure validation
 ```bash
 # Find visuals without descriptive names
 pbir find "Report.Report/**/*.Visual" --json | grep -i "visual\d"
-
-# Script to find visuals without titles
-pbir script --execute "
-for page in context.report.pages:
-    for visual in page.visuals:
-        if not visual.title.show or not visual.title.text:
-            print(f'No title: {page.display_name}/{visual.name} ({visual.visual_type})')
-" "Report.Report"
 ```
 
 ### Analyzing Filter Usage
@@ -99,46 +91,13 @@ for page in context.report.pages:
 ```bash
 # Report-level filters
 pbir filters list "Report.Report"
-
-# Visual-level filters via script
-pbir script --execute "
-for page in context.report.pages:
-    for visual in page.visuals:
-        if visual.filters:
-            print(f'{page.display_name}/{visual.name}: {len(visual.filters)} filters')
-" "Report.Report"
 ```
 
 ### Performance Assessment
 
 ```bash
-# Visual count per page
-pbir script --execute "
-for page in context.report.pages:
-    count = len(page.visuals)
-    status = 'OK' if count <= 10 else 'HIGH' if count <= 15 else 'CRITICAL'
-    print(f'{page.display_name}: {count} visuals ({status})')
-" "Report.Report"
-
 # Extension measure count
 pbir dax measures list "Report.Report"
-```
-
-### Documentation Generation
-
-```bash
-pbir script --execute "
-r = context.report
-print(f'# {r.display_name}')
-print(f'Pages: {len(r.pages)}')
-print(f'Total Visuals: {sum(len(p.visuals) for p in r.pages)}')
-print()
-for page in r.pages:
-    print(f'## {page.display_name} ({page.width}x{page.height})')
-    for visual in page.visuals:
-        title = visual.title.text or visual.name
-        print(f'  - {title} ({visual.visual_type})')
-" "Report.Report"
 ```
 
 ## Troubleshooting

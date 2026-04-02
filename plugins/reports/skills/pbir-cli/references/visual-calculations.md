@@ -109,28 +109,6 @@ pbir dax viscalcs add "Visual.Visual" \
   -n "RevenuePctChange" -e "DIVIDE([Revenue] - PREVIOUS([Revenue]), PREVIOUS([Revenue]))"
 ```
 
-## Object Model (Bulk Creation)
-
-```bash
-pbir script --execute "
-v = context.visual
-
-calcs = [
-    ('RunningTotal', 'RUNNINGSUM([Revenue])', None),
-    ('RevenueRank', 'RANK()', 'Sales.Revenue'),
-    ('PriorPeriod', 'PREVIOUS([Revenue])', None),
-]
-
-for name, expr, qref in calcs:
-    kwargs = {'name': name, 'expression': expr}
-    if qref:
-        kwargs['query_ref'] = qref
-    v.add_visual_calculation(**kwargs)
-
-v.save()
-" "Report.Report/Page.Page/Visual.Visual"
-```
-
 ## Visual Calculations vs Extension Measures
 
 | Aspect | Visual Calculations | Extension Measures |

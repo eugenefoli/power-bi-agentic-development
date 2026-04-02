@@ -133,80 +133,13 @@ Key types and their primary data roles:
 - **map / filledMap**: Location (Size/Values, Legend)
 - **textbox / image**: no data roles
 
-## Bulk Creation via Object Model (Preferred)
-
-For creating multiple visuals with computed layouts, use `pbir script` with the object model. This is more flexible than `--from-json` because it supports loops, computed positions, and conditional logic.
-
-**Important**: When using `Field()`, always set `kind=1` for measures and `kind=0` for columns. The default (`kind=None`) creates Column bindings, which will break visuals if the field is actually a measure in the model.
-
-```bash
-pbir script --execute "
-from pbir_object_model import Field
-
-page = context.page
-
-# KPI row with computed positions
-# Note: kind=1 because these are all measures
-kpis = [
-    ('Revenue', 'Sales', 'Revenue'),
-    ('Orders', 'Orders', 'OrderCount'),
-    ('Margin', 'Sales', 'GrossMargin'),
-    ('Customers', 'Customers', 'CustomerCount'),
-]
-card_w, card_h, gap = 290, 140, 20
-for i, (title, table, field) in enumerate(kpis):
-    x = gap + i * (card_w + gap)
-    page.create_visual(
-        'card',
-        x=x, y=gap, width=card_w, height=card_h,
-        title=title,
-        fields={'Values': Field(table, field, kind=1)}
-    )
-
-# Full-width chart below KPIs
-page.create_visual(
-    'lineChart',
-    x=gap, y=card_h + gap * 2,
-    width=1240, height=400,
-    title='Revenue Trend',
-    fields={
-        'Category': Field('Date', 'Month', kind=0),   # Column
-        'Y': Field('Sales', 'Revenue', kind=1),        # Measure
-    }
-)
-" "Report.Report/Page.Page"
-```
-
-### Object Model Creation Methods
-
-```python
-# Single visual -- saves to disk immediately
-# kind=1 for measures, kind=0 for columns
-visual = page.create_visual("card", x=20, y=20, title="Revenue",
-    fields={"Values": Field("Sales", "Revenue", kind=1)})
-
-# Bulk -- saves all to disk
-visuals = page.create_visuals([
-    {"visual_type": "card", "x": 20, "y": 20, "title": "Revenue",
-     "fields": {"Values": Field("Sales", "Revenue", kind=1)}},
-    {"visual_type": "card", "x": 330, "y": 20, "title": "Orders",
-     "fields": {"Values": Field("Orders", "Count", kind=1)}},
-])
-
-# In-memory then add (for more control)
-visual = Visual.new("card", x=20, y=20, title="Revenue")
-page.add_visual(visual, position="auto")  # auto-find empty space
-```
-
-### --from-json (CI/Pipeline Use)
+## Bulk Creation from JSON (CI/Pipeline Use)
 
 The `--from-json` flag exists for non-interactive use (CI pipelines, pre-generated specs):
 
 ```bash
 pbir add visual "Report.Report/Page.Page" --from-json visuals.json
 ```
-
-For interactive/agentic work, prefer the object model approach above.
 
 ## Title and Subtitle Textboxes
 

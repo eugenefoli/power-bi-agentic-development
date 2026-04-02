@@ -66,33 +66,11 @@ Pages with >12-15 visuals have performance and UX issues.
 
 ```bash
 pbir tree "Report.Report"                        # Shows visual count per page
-
-# Detailed per-page analysis
-pbir script --execute "
-for page in context.report.pages:
-    count = len(page.visuals)
-    types = {}
-    for v in page.visuals:
-        types[v.visual_type] = types.get(v.visual_type, 0) + 1
-    status = 'OK' if count <= 10 else 'HIGH' if count <= 15 else 'CRITICAL'
-    print(f'{page.display_name}: {count} visuals ({status})')
-    for t, c in sorted(types.items(), key=lambda x: -x[1]):
-        print(f'  {t}: {c}')
-" "Report.Report"
 ```
 
 ### Hidden Visuals
 
 Hidden visuals are problematic -- they still execute queries against the model, degrading performance, but are invisible to users. Hidden slicers are especially dangerous: they apply filters silently, causing confusion when data appears filtered with no visible cause. Flag all hidden visuals and recommend removing or replacing them with report/page-level filters.
-
-```bash
-pbir script --execute "
-for page in context.report.pages:
-    for v in page.visuals:
-        if v.is_hidden:
-            print(f'HIDDEN VISUAL: {page.display_name}/{v.name} ({v.visual_type})')
-" "Report.Report"
-```
 
 ### Hidden Fields
 
@@ -142,40 +120,11 @@ Slicers take up valuable real estate. Only use for critical, simple selections. 
 # Count slicers
 pbir find "Report.Report/**/*slicer*.Visual" --count
 pbir find "Report.Report/**/*Slicer*.Visual" --count
-
-# List all slicer visuals
-pbir script --execute "
-for page in context.report.pages:
-    slicers = [v for v in page.visuals if 'slicer' in v.visual_type.lower()]
-    if slicers:
-        print(f'{page.display_name}: {len(slicers)} slicers')
-        for s in slicers:
-            print(f'  {s.name} ({s.visual_type})')
-" "Report.Report"
 ```
 
 ### Unsynchronized Slicers Across Pages
 
 When multiple pages have slicers on the same field, users expect them to stay in sync. If they don't, selecting "2024" on one page and navigating to another shows unfiltered data -- confusing and error-prone. Compare slicer fields across pages to find mismatches. Prefer report-level filters for fields that should filter consistently across all pages.
-
-```bash
-pbir script --execute "
-from collections import defaultdict
-field_pages = defaultdict(list)
-for page in context.report.pages:
-    for v in page.visuals:
-        if 'slicer' in v.visual_type.lower():
-            bindings = v.get_field_bindings()
-            for role, fields in bindings.items():
-                for f in (fields if isinstance(fields, list) else [fields]):
-                    field_pages[f].append(page.display_name)
-for field, pages in sorted(field_pages.items()):
-    if len(pages) > 1:
-        print(f'{field}: on {len(pages)} pages -- {pages}')
-    else:
-        print(f'{field}: only on {pages[0]}')
-" "Report.Report"
-```
 
 ### Report and Page-Level Filters
 
@@ -190,17 +139,6 @@ pbir filters json "Report.Report"                # Full filter JSON (see hidden/
 
 Visual-level filters are generally bad practice -- users cannot see them and developers forget about them.
 
-```bash
-pbir script --execute "
-for page in context.report.pages:
-    for visual in page.visuals:
-        if visual.filters:
-            print(f'Visual filters: {page.display_name}/{visual.name}')
-            for f in visual.filters:
-                print(f'  {f}')
-" "Report.Report"
-```
-
 ### Slicer Interactions
 
 Check for slicers not interacting with other visuals -- often unintentional and confusing for users.
@@ -214,19 +152,6 @@ pbir pages interactions "Report.Report/Page.Page"  # List visual interactions on
 Visuals without an explicit sort order default to alphabetical or insertion order, which is almost never correct. Charts and tables should sort by the primary measure descending, unless a natural order exists (time ascending, ordinal categories).
 
 ```bash
-# Check sort on each visual
-pbir script --execute "
-for page in context.report.pages:
-    for v in page.visuals:
-        if v.visual_type in ('textbox', 'image', 'shape'):
-            continue
-        sort_info = v.sort if hasattr(v, 'sort') else None
-        if sort_info:
-            print(f'{page.display_name}/{v.name}: sorted')
-        else:
-            print(f'UNSORTED: {page.display_name}/{v.name} ({v.visual_type})')
-" "Report.Report"
-
 # Set sort on a visual
 pbir visuals sort "Visual.Visual" -f "Sales.Revenue" -d Descending
 ```
@@ -240,13 +165,6 @@ Simple equal spacing ensures an organized look.
 ```bash
 # Check visual positions and sizes
 pbir cat "Report.Report/Page.Page"               # Page JSON with all positions
-
-pbir script --execute "
-for page in context.report.pages:
-    print(f'--- {page.display_name} ---')
-    for v in page.visuals:
-        print(f'  {v.name}: x={v.x}, y={v.y}, w={v.width}, h={v.height}')
-" "Report.Report"
 ```
 
 ### 3-30-300 Rule
@@ -261,28 +179,9 @@ pbir tree "Report.Report" -v                     # Visual types and field bindin
 
 Large tables/matrixes with too many columns cause cognitive load and performance issues.
 
-```bash
-pbir script --execute "
-for page in context.report.pages:
-    for v in page.visuals:
-        if v.visual_type in ('tableEx', 'pivotTable'):
-            bindings = v.get_field_bindings() if hasattr(v, 'get_field_bindings') else {}
-            print(f'{page.display_name}/{v.name} ({v.visual_type}): {v.width}x{v.height}')
-" "Report.Report"
-```
-
 ### Pie/Donut Charts
 
 Pie and donut charts with >3-7 categories are generally ineffective. Consider bar charts instead.
-
-```bash
-pbir script --execute "
-for page in context.report.pages:
-    for v in page.visuals:
-        if v.visual_type in ('pieChart', 'donutChart'):
-            print(f'{page.display_name}/{v.name} ({v.visual_type})')
-" "Report.Report"
-```
 
 ## 10. Check Visual Formatting
 
@@ -306,15 +205,6 @@ pbir visuals format "Report.Report/Page.Page/Visual.Visual"  # Check for hardcod
 ### Drop Shadows
 
 Drop shadows create accessibility issues (vestibular disabilities). Replace with flat layout + sufficient background contrast.
-
-```bash
-pbir script --execute "
-for page in context.report.pages:
-    for v in page.visuals:
-        if hasattr(v, 'dropShadow') and v.dropShadow.show:
-            print(f'Drop shadow: {page.display_name}/{v.name}')
-" "Report.Report"
-```
 
 ### Intentional Color Use
 

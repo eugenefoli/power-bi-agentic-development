@@ -84,48 +84,6 @@ pbir bookmarks visuals "Report.Report" "BookmarkName" --all               # Appl
 pbir bookmarks visuals "Report.Report" "BookmarkName" visual1 visual2     # Target specific visuals
 ```
 
-## Updating Multiple Bookmarks at Once
-
-Use `pbir script` to batch-update bookmark settings:
-
-```bash
-# Disable data capture on all bookmarks
-pbir script --execute "
-import json
-from pathlib import Path
-
-report = context.report
-bm_dir = Path(report.path) / 'definition' / 'bookmarks'
-
-for bm_file in bm_dir.glob('*.bookmark.json'):
-    with open(bm_file) as f:
-        bm = json.load(f)
-    bm.setdefault('options', {})['suppressData'] = True
-    with open(bm_file, 'w') as f:
-        json.dump(bm, f, indent=2)
-    print(f'Updated: {bm.get(\"displayName\", bm_file.stem)}')
-" "Report.Report"
-
-# Rename bookmarks matching a pattern
-pbir script --execute "
-import json
-from pathlib import Path
-
-report = context.report
-bm_dir = Path(report.path) / 'definition' / 'bookmarks'
-
-for bm_file in bm_dir.glob('*.bookmark.json'):
-    with open(bm_file) as f:
-        bm = json.load(f)
-    name = bm.get('displayName', '')
-    if name.startswith('BM_'):
-        bm['displayName'] = name.replace('BM_', '').replace('_', ' ').title()
-        with open(bm_file, 'w') as f:
-            json.dump(bm, f, indent=2)
-        print(f'Renamed: {name} -> {bm[\"displayName\"]}')
-" "Report.Report"
-```
-
 ## Renaming Bookmarks
 
 ```bash
@@ -153,43 +111,6 @@ PBIR stores each bookmark as a separate file, making cross-report copying straig
 ```bash
 # Copy a single bookmark file
 pbir cp "Source.Report/bookmark:BookmarkName" "Target.Report/bookmark:BookmarkName"
-```
-
-### Manual Copy (for Bulk or Custom)
-
-For bulk copying or when bookmark names need adjustment:
-
-```bash
-pbir script --execute "
-import json, shutil
-from pathlib import Path
-
-source_dir = Path('Source.Report/definition/bookmarks')
-target_dir = Path('Target.Report/definition/bookmarks')
-target_dir.mkdir(parents=True, exist_ok=True)
-
-# Copy all bookmark files
-for bm_file in source_dir.glob('*.bookmark.json'):
-    shutil.copy2(bm_file, target_dir / bm_file.name)
-    print(f'Copied: {bm_file.name}')
-
-# Update bookmarks.json to include new entries
-source_meta = json.loads((source_dir / 'bookmarks.json').read_text())
-target_meta_path = target_dir / 'bookmarks.json'
-
-if target_meta_path.exists():
-    target_meta = json.loads(target_meta_path.read_text())
-else:
-    target_meta = {'\$schema': 'https://developer.microsoft.com/json-schemas/fabric/item/report/definition/bookmarksMetadata/1.0.0/schema.json', 'items': []}
-
-existing_names = {item['name'] for item in target_meta['items']}
-for item in source_meta['items']:
-    if item['name'] not in existing_names:
-        target_meta['items'].append(item)
-
-target_meta_path.write_text(json.dumps(target_meta, indent=2))
-print('Updated bookmarks.json')
-" "Report.Report"
 ```
 
 **Important**: When copying bookmarks between reports, the bookmark's `explorationState` contains references to page IDs (`activeSection`) and visual IDs (`targetVisualNames`). If the target report has different page/visual IDs, these references must be updated or the bookmark will not work correctly. Use `AskUserQuestion` to confirm which pages and visuals the copied bookmarks should target.
@@ -241,22 +162,6 @@ pbir find "Report.Report/**/bookmarkNavigator*.Visual"
 # Check which bookmark group it displays
 pbir get "Report.Report/Page.Page/Nav.Visual.bookmarks.bookmarkGroup"
 pbir get "Report.Report/Page.Page/Nav.Visual.bookmarks.selectedBookmark"
-```
-
-### Bulk Audit: Find All Bookmark References
-
-```bash
-pbir script --execute "
-for page in context.report.pages:
-    for v in page.visuals:
-        if v.visual_type == 'actionButton':
-            link_type = v.get_property('visualLink', 'type') if hasattr(v, 'visualLink') else None
-            bookmark = v.get_property('visualLink', 'bookmark') if hasattr(v, 'visualLink') else None
-            if link_type == 'Bookmark' or bookmark:
-                print(f'Button: {page.display_name}/{v.name} -> bookmark: {bookmark}')
-        elif v.visual_type == 'bookmarkNavigator':
-            print(f'Navigator: {page.display_name}/{v.name}')
-" "Report.Report"
 ```
 
 ## Bookmark JSON Structure
