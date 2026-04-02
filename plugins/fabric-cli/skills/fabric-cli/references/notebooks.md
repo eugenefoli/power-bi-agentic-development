@@ -101,6 +101,102 @@ fab get "Production.Workspace" -q "id"
 fab api -X post "workspaces/<workspace-id>/notebooks" -i '{"displayName": "New Data Processing"}'
 ```
 
+### Creating Notebooks for fab import
+
+When creating notebooks locally for `fab import`, use `.ipynb` (JSON) format with proper metadata.
+
+#### Required Metadata Fields
+
+| Field | Required | Value | What happens without it |
+|-------|----------|-------|------------------------|
+| `metadata.language_info.name` | Yes | `"python"` | `fab job run` fails: "Not supported language" |
+| `metadata.kernel_info.name` | Yes | `"synapse_pyspark"` | Spark session may not initialize |
+| `metadata.dependencies.lakehouse` | For lakehouse access | See below | `NameError: name 'spark' is not defined` |
+
+#### .platform File (Required)
+
+```json
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": { "type": "Notebook", "displayName": "MyNotebook" },
+  "config": { "version": "2.0", "logicalId": "00000000-0000-0000-0000-000000000001" }
+}
+```
+
+#### notebook-content.ipynb (Required)
+
+```json
+{
+  "nbformat": 4, "nbformat_minor": 5,
+  "metadata": {
+    "kernel_info": { "name": "synapse_pyspark" },
+    "language_info": { "name": "python" },
+    "dependencies": {
+      "lakehouse": {
+        "default_lakehouse": "<lakehouse-guid>",
+        "default_lakehouse_name": "LakehouseName",
+        "default_lakehouse_workspace_id": "<workspace-guid>"
+      }
+    }
+  },
+  "cells": [
+    {
+      "cell_type": "code",
+      "source": ["df = spark.sql('SELECT * FROM my_table')\n", "print(df.count())"],
+      "metadata": {},
+      "outputs": []
+    }
+  ]
+}
+```
+
+#### Directory Structure
+
+```
+MyNotebook.Notebook/
+├── .platform                    # Required; displayName must match item name
+└── notebook-content.ipynb       # Required; must be .ipynb (JSON), not .py
+```
+
+#### Import and Run
+
+```bash
+fab import "ws.Workspace/MyNotebook.Notebook" -i /tmp/MyNotebook.Notebook -f
+fab job run "ws.Workspace/MyNotebook.Notebook"
+```
+
+#### Common Failures
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| "Not supported language" | Missing `language_info.name` | Add `"language_info": {"name": "python"}` |
+| "failed without detail error" (instant) | Missing lakehouse or bad metadata | Attach lakehouse in `dependencies` |
+| "failed without detail error" (~40s) | Code error or connector issue | Open notebook in Fabric portal to see Spark logs |
+| `NameError: spark` | No lakehouse attached | Add `default_lakehouse` to dependencies |
+
+### Writing to Warehouses and SQL Databases from Notebooks
+
+Notebooks can write to warehouses and SQL databases using the Spark synapsesql connector:
+
+```python
+import com.microsoft.spark.fabric
+from com.microsoft.spark.fabric.Constants import Constants
+
+# Write DataFrame to a warehouse table
+df.write.synapsesql("WarehouseName.dbo.table_name", mode="overwrite")
+
+# Read from a warehouse table
+df = spark.read.synapsesql("WarehouseName.dbo.table_name")
+
+# Cross-database: read from lakehouse, write to warehouse
+df = spark.sql("SELECT * FROM LakehouseName.schema.table")
+df.write.synapsesql("WarehouseName.dbo.target_table", mode="overwrite")
+```
+
+The `com.microsoft.spark.fabric` import is required; without it `synapsesql` is not available on the DataFrame reader/writer. The warehouse must be in the same workspace as the notebook's attached lakehouse.
+
+**Known issue**: `fab job run` failures with `synapsesql` show "failed without detail error". Open the notebook in Fabric portal to see the actual Spark exception in cell output. Common causes: warehouse name mismatch, permissions, or the connector not finding the warehouse endpoint.
+
 ### Create and Configure Query Notebook
 
 Use this workflow to create a notebook for querying lakehouse tables with Spark SQL.
@@ -641,14 +737,54 @@ fab set "Production.Workspace/ETL.Notebook" -q lakehouse -i '{
 }'
 ```
 
-## Performance Tips
+## Reducing Spark Cold Start Times
 
-1. **Use workspace pools**: Faster startup than starter pool
-2. **Cache data in lakehouses**: Avoid re-fetching data
-3. **Parameterize notebooks**: Reuse logic with different inputs
-4. **Monitor execution time**: Set appropriate timeouts
-5. **Use async execution**: Don't block on long-running notebooks
-6. **Optimize Spark config**: Tune for specific workloads
+Spark cold starts (2-5 minutes) are the main pain point when running notebooks via `fab job run`. Options from fastest to slowest:
+
+| Scenario | Approach | Expected startup |
+|----------|----------|-----------------|
+| No custom libs, no VNet | Starter pool (default) | 5-10s |
+| Custom libs, scheduled work | Custom Live Pool + Full mode env | ~5s |
+| Many notebooks, same config | High Concurrency Mode | First: normal; rest: instant |
+| Don't need Spark | Python notebook kernel | ~5s |
+| Custom libs, no live pool | Full mode environment | 1-3 min |
+| Private Link / Managed VNet | Custom pool (unavoidable) | 2-5 min |
+
+### Starter Pools (Default)
+
+Pre-warmed, Microsoft-managed. Fast (~5-10s) if all conditions are met:
+- No custom libraries or Spark properties
+- Medium node size (8 vCore / 64 GB)
+- No Private Links or Managed VNets
+
+Any of those conditions forces on-demand provisioning (2-5 min).
+
+### Custom Live Pools (Best for Scheduled Workloads)
+
+Pre-warmed clusters on a schedule with libraries pre-baked:
+
+1. Workspace Settings > Data Engineering > Spark Settings > Pool > New Pool
+2. Attach an Environment with libraries published in **Full mode**
+3. Enable Live Pool schedule covering working hours (add 60-90 min buffer for hydration)
+
+Monitoring: Monitoring Hub > Environment > View Details > Live pool status
+
+### High Concurrency Mode (Session Reuse)
+
+Multiple notebooks share one Spark session; first pays cold start, rest attach instantly:
+
+- **Interactive**: Run tab > Session type > "New high concurrency session"; other notebooks attach to it
+- **Pipeline**: Workspace Settings > Spark > High Concurrency > enable for pipelines; use session tags to group notebooks
+- Requirements: same user, same default lakehouse, same compute settings, same libraries
+- Default limit: 5 notebooks per session; increase via Environment Spark property `spark.highConcurrency.max = 20`
+
+### Python Notebooks (Skip Spark)
+
+For workloads that fit in memory (<1GB), switch kernel to Python. Runs on a lightweight 2-core container; no Spark cluster. Pre-installed: DuckDB, Polars, Pandas, delta-rs.
+
+### Diagnosing Slow Starts
+
+Open notebook > session status > Session Details. Check **delay reason** and **session source** (starter pool vs on-demand). Common causes: custom Spark properties, Full mode snapshot deployment, Managed VNet.
 
 ## Best Practices
 
@@ -660,6 +796,7 @@ fab set "Production.Workspace/ETL.Notebook" -q lakehouse -i '{
 6. **Test locally first**: Validate in development workspace
 7. **Monitor schedules**: Review execution history regularly
 8. **Clean up old notebooks**: Remove unused notebooks
+9. **Prefer DuckDB for read-only queries**: When exploring lakehouse data, DuckDB avoids Spark entirely; see [querying-data.md](./querying-data.md)
 
 ## Security Considerations
 
