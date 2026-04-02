@@ -1,677 +1,359 @@
 # Notebook Operations
 
-Comprehensive guide for working with Fabric notebooks using the Fabric CLI.
+Guide for working with Fabric notebooks via `fab`. Covers both Python and PySpark kernels, metadata formats, data item attachments, and reading/writing from OneLake.
 
-## Overview
+## Choosing a Kernel
 
-Fabric notebooks are interactive documents for data engineering, data science, and analytics. They can be executed, scheduled, and managed via the CLI.
+Fabric notebooks support two runtime types. **Prefer Python for agent work**; it starts in seconds, has DuckDB/Polars/delta-rs pre-installed, and can run T-SQL against warehouses via `notebookutils.data`.
 
-## Getting Notebook Information
+| | Python Notebook | PySpark Notebook |
+|---|---|---|
+| Startup | ~5 seconds | 5s-5min (cold start) |
+| Compute | Single-node container (2 vCores) | Spark cluster (4+ vCores) |
+| Delta Lake | via delta-rs (< v1.0.0) | Native; full support |
+| T-SQL (warehouse/SQL DB) | `notebookutils.data.connect_to_artifact()` | Not available |
+| DuckDB/Polars | Pre-installed | Not pre-installed |
+| Use when | Data fits in memory; T-SQL; quick tasks | Distributed compute; large data; Spark SQL |
 
-### Basic Notebook Info
+## Notebook Metadata Format
 
-```bash
-# Check if notebook exists
-fab exists "Production.Workspace/ETL Pipeline.Notebook"
+The kernel type is determined by metadata fields in the `.ipynb` file. Getting these wrong causes silent failures or the wrong kernel.
 
-# Get notebook properties
-fab get "Production.Workspace/ETL Pipeline.Notebook"
+### Python Notebook
 
-# Get with verbose details
-fab get "Production.Workspace/ETL Pipeline.Notebook" -v
-
-# Get only notebook ID
-fab get "Production.Workspace/ETL Pipeline.Notebook" -q "id"
-```
-
-### Get Notebook Definition
-
-```bash
-# Get full notebook definition
-fab get "Production.Workspace/ETL Pipeline.Notebook" -q "definition"
-
-# Save definition to file
-fab get "Production.Workspace/ETL Pipeline.Notebook" -q "definition" -o /tmp/notebook-def.json
-
-# Get notebook content (cells)
-fab get "Production.Workspace/ETL Pipeline.Notebook" -q "definition.parts[?path=='notebook-content.py'].payload | [0]"
-```
-
-## Exporting Notebooks
-
-### Export as IPYNB
-
-```bash
-# Export notebook
-fab export "Production.Workspace/ETL Pipeline.Notebook" -o /tmp/notebooks
-
-# This creates:
-# /tmp/notebooks/ETL Pipeline.Notebook/
-# ├── notebook-content.py (or .ipynb)
-# └── metadata files
-```
-
-### Export All Notebooks from Workspace
-
-```bash
-# Export all notebooks
-WS_ID=$(fab get "Production.Workspace" -q "id")
-NOTEBOOKS=$(fab api "workspaces/$WS_ID/items" -q "value[?type=='Notebook'].displayName")
-
-# Native alternative (preferred):
-# NOTEBOOKS=$(fab ls "Production.Workspace" -q "[?contains(name, '.Notebook')]")
-
-for NOTEBOOK in $NOTEBOOKS; do
-    fab export "Production.Workspace/$NOTEBOOK.Notebook" -o /tmp/notebooks
-done
-```
-
-## Importing Notebooks
-
-### Import from Local
-
-```bash
-# Import notebook from .ipynb format (default)
-fab import "Production.Workspace/New ETL.Notebook" -i /tmp/notebooks/ETL\ Pipeline.Notebook
-
-# Import from .py format
-fab import "Production.Workspace/Script.Notebook" -i /tmp/script.py --format py
-```
-
-### Copy Between Workspaces
-
-```bash
-# Copy notebook
-fab cp "Dev.Workspace/ETL.Notebook" "Production.Workspace"
-
-# Copy with new name
-fab cp "Dev.Workspace/ETL.Notebook" "Production.Workspace/Prod ETL.Notebook"
-```
-
-## Creating Notebooks
-
-### Create Blank Notebook
-
-```bash
-# Native alternative for empty notebook (preferred):
-fab mkdir "Production.Workspace/New Data Processing.Notebook"
-
-# Or via API:
-fab get "Production.Workspace" -q "id"
-fab api -X post "workspaces/<workspace-id>/notebooks" -i '{"displayName": "New Data Processing"}'
-```
-
-### Create and Configure Query Notebook
-
-Use this workflow to create a notebook for querying lakehouse tables with Spark SQL.
-
-#### Step 1: Create the notebook
-
-```bash
-# Get workspace ID
-fab get "Sales.Workspace" -q "id"
-# Returns: 4caf7825-81ac-4c94-9e46-306b4c20a4d5
-
-# Create notebook
-fab api -X post "workspaces/4caf7825-81ac-4c94-9e46-306b4c20a4d5/notebooks" -i '{"displayName": "Data Query"}'
-# Returns notebook ID: 97bbd18d-c293-46b8-8536-82fb8bc9bd58
-```
-
-#### Step 2: Get lakehouse ID (required for notebook metadata)
-
-```bash
-fab get "Sales.Workspace/SalesLH.Lakehouse" -q "id"
-# Returns: ddbcc575-805b-4922-84db-ca451b318755
-```
-
-#### Step 3: Create notebook code in Fabric format
-
-```bash
-cat > /tmp/notebook.py <<'EOF'
-# Fabric notebook source
-
-# METADATA ********************
-
-# META {
-# META   "kernel_info": {
-# META     "name": "synapse_pyspark"
-# META   },
-# META   "dependencies": {
-# META     "lakehouse": {
-# META       "default_lakehouse": "ddbcc575-805b-4922-84db-ca451b318755",
-# META       "default_lakehouse_name": "SalesLH",
-# META       "default_lakehouse_workspace_id": "4caf7825-81ac-4c94-9e46-306b4c20a4d5"
-# META     }
-# META   }
-# META }
-
-# CELL ********************
-
-# Query lakehouse table
-df = spark.sql("""
-    SELECT
-        date_key,
-        COUNT(*) as num_records
-    FROM gold.sets
-    GROUP BY date_key
-    ORDER BY date_key DESC
-    LIMIT 10
-""")
-
-# IMPORTANT: Convert to pandas and print to capture output
-# display(df) will NOT show results via API
-pandas_df = df.toPandas()
-print(pandas_df)
-print(f"\nLatest date: {pandas_df.iloc[0]['date_key']}")
-EOF
-```
-
-#### Step 4: Base64 encode and create update definition
-
-```bash
-base64 -i /tmp/notebook.py > /tmp/notebook-b64.txt
-
-cat > /tmp/update.json <<EOF
+```json
 {
-  "definition": {
-    "parts": [
-      {
-        "path": "notebook-content.py",
-        "payload": "$(cat /tmp/notebook-b64.txt)",
-        "payloadType": "InlineBase64"
-      }
+  "kernel_info": { "name": "jupyter", "jupyter_kernel_name": "python3.11" },
+  "language_info": { "name": "python" },
+  "microsoft": { "language": "python", "language_group": "jupyter_python" },
+  "kernelspec": { "name": "jupyter", "display_name": "Jupyter" }
+}
+```
+
+### PySpark Notebook
+
+```json
+{
+  "kernel_info": { "name": "synapse_pyspark" },
+  "language_info": { "name": "python" },
+  "microsoft": { "language": "python", "language_group": "synapse_pyspark" }
+}
+```
+
+### Key Differentiators
+
+| Field | Python | PySpark |
+|---|---|---|
+| `kernel_info.name` | `"jupyter"` | `"synapse_pyspark"` |
+| `kernel_info.jupyter_kernel_name` | `"python3.11"` or `"python3.10"` | not present |
+| `microsoft.language_group` | `"jupyter_python"` | `"synapse_pyspark"` |
+| `kernelspec.name` | `"jupyter"` | `"python3"` |
+
+### Cell Metadata
+
+Each cell carries `cell_type` (`"code"` or `"markdown"`) and its own `microsoft.language_group`:
+
+```json
+{
+  "cell_type": "code",
+  "source": ["print('hello')"],
+  "outputs": [],
+  "execution_count": null,
+  "metadata": {
+    "microsoft": { "language": "python", "language_group": "jupyter_python" }
+  }
+}
+```
+
+Markdown cells use `"cell_type": "markdown"` with the same metadata structure.
+
+## Attaching Data Items
+
+Data items (lakehouse, warehouse, SQL database) are attached via the `dependencies` field in notebook metadata. Without attachments, lakehouse paths and `notebookutils.data` calls may fail.
+
+### Lakehouse Attachment
+
+```json
+"dependencies": {
+  "lakehouse": {
+    "default_lakehouse": "<lakehouse-guid>",
+    "default_lakehouse_name": "<LakehouseName>",
+    "default_lakehouse_workspace_id": "<workspace-guid>",
+    "known_lakehouses": [{ "id": "<lakehouse-guid>" }]
+  }
+}
+```
+
+### Warehouse Attachment
+
+```json
+"dependencies": {
+  "warehouse": {
+    "default_warehouse": "<warehouse-guid>",
+    "known_warehouses": [
+      { "id": "<warehouse-guid>", "type": "Datawarehouse" }
     ]
   }
 }
-EOF
 ```
 
-#### Step 5: Update notebook with code
+Warehouse types: `Datawarehouse` (warehouse), `Lakewarehouse` (lakehouse SQL endpoint), `MountedWarehouse` (SQL database).
+
+### Combined Attachments
+
+Lakehouse and warehouse can coexist:
+
+```json
+"dependencies": {
+  "lakehouse": { ... },
+  "warehouse": { ... }
+}
+```
+
+Get the GUIDs with `fab get "ws.Workspace/Item.Type" -q "id"`.
+
+## Creating and Importing Notebooks
+
+### Directory Structure
+
+```
+MyNotebook.Notebook/
+  .platform                    # Required; displayName must match item name
+  notebook-content.ipynb       # Required; .ipynb JSON format
+```
+
+### .platform File
+
+```json
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": { "type": "Notebook", "displayName": "MyNotebook" },
+  "config": { "version": "2.0", "logicalId": "00000000-0000-0000-0000-000000000001" }
+}
+```
+
+### Import and Run
 
 ```bash
-# Alternative for updating notebook from local file (preferred):
-fab import "Sales.Workspace/Data Query.Notebook" -i /tmp/notebook.py --format py -f
-
-# Or via API (manual base64 encoding required):
-fab api -X post "workspaces/4caf7825-81ac-4c94-9e46-306b4c20a4d5/notebooks/97bbd18d-c293-46b8-8536-82fb8bc9bd58/updateDefinition" -i /tmp/update.json --show_headers
-# Returns operation ID in Location header
+mkdir -p /tmp/MyNotebook.Notebook
+# Create .platform and notebook-content.ipynb files (see examples/)
+fab import "ws.Workspace/MyNotebook.Notebook" -i /tmp/MyNotebook.Notebook -f
+fab job run "ws.Workspace/MyNotebook.Notebook"
 ```
 
-#### Step 6: Check update completed
+### Common Import Failures
 
-```bash
-fab api "operations/<operation-id>"
-# Wait for status: "Succeeded"
+| Error | Cause | Fix |
+|---|---|---|
+| "Not supported language" | Missing `language_info.name` | Add `"language_info": {"name": "python"}` |
+| "failed without detail error" (instant) | Bad metadata or missing attachment | Check `kernel_info`, `language_group`, `dependencies` |
+| "failed without detail error" (~40s) | Code error; no detail via CLI | Open in portal (`fab open`) to see Spark/Python traceback |
+| `NameError: spark` | No lakehouse attached (PySpark only) | Add `default_lakehouse` to dependencies |
+| `module has no attribute` | Wrong API name | Check `notebookutils.data.help()` for correct methods |
+
+## Reading and Writing Data
+
+### PySpark: Lakehouse Tables
+
+```python
+# Read with three-part naming
+df = spark.sql("SELECT * FROM LakehouseName.schema.table")
+
+# Write to lakehouse table
+df.write.mode("overwrite").option("overwriteSchema", "true").saveAsTable("LakehouseName.schema.table")
 ```
 
-#### Step 7: Run the notebook
+### Python: Lakehouse with delta-rs
 
-```bash
-fab job start "Sales.Workspace/Data Query.Notebook"
-# Returns job instance ID
+```python
+from deltalake import DeltaTable
+
+# Local path (attached lakehouse)
+dt = DeltaTable('/lakehouse/default/Tables/my_table')
+df = dt.to_pandas()
+
+# ABFS path (any lakehouse; no attachment needed)
+access_token = notebookutils.credentials.getToken('storage')
+storage_options = {'bearer_token': access_token, 'use_fabric_endpoint': 'true'}
+dt = DeltaTable(
+    'abfss://<ws-guid>@onelake.dfs.fabric.microsoft.com/<lh-guid>/Tables/schema/table',
+    storage_options=storage_options
+)
+df = dt.to_pandas()
 ```
 
-#### Step 8: Check execution status
+### Python: Lakehouse with DuckDB
 
-```bash
-fab job run-status "Sales.Workspace/Data Query.Notebook" --id <job-id>
-# Wait for status: "Completed"
+```python
+import duckdb
+from deltalake import DeltaTable
+
+access_token = notebookutils.credentials.getToken('storage')
+storage_options = {'bearer_token': access_token, 'use_fabric_endpoint': 'true'}
+dt = DeltaTable('abfss://...', storage_options=storage_options)
+arrow_ds = dt.to_pyarrow_dataset()
+
+# DuckDB queries Arrow datasets with filter pushdown
+result = duckdb.sql("SELECT count(*) FROM arrow_ds").df()
 ```
 
-#### Step 9: Get results (download from Fabric UI)
+### Python: Write to Lakehouse with delta-rs
 
-- Open notebook in Fabric UI after execution
-- Print output will be visible in cell outputs
-- Download .ipynb file to see printed results locally
-
-#### Critical Requirements
-
-1. **File format**: Must be `notebook-content.py` (NOT `.ipynb`)
-2. **Lakehouse ID**: Must include `default_lakehouse` ID in metadata (not just name)
-3. **Spark session**: Will be automatically available when lakehouse is attached
-4. **Capturing output**: Use `df.toPandas()` and `print()` - `display()` won't show in API
-5. **Results location**: Print output visible in UI and downloaded .ipynb, NOT in definition
-
-#### Common Issues
-
-- `NameError: name 'spark' is not defined` - Lakehouse not attached (missing default_lakehouse ID)
-- Job "Completed" but no results - Used display() instead of print()
-- Update fails - Used .ipynb path instead of .py
-
-### Create from Template
-
-```bash
-# Export template
-fab export "Templates.Workspace/Template Notebook.Notebook" -o /tmp/templates
-
-# Import as new notebook
-fab import "Production.Workspace/Custom Notebook.Notebook" -i /tmp/templates/Template\ Notebook.Notebook
+```python
+from deltalake.writer import write_deltalake
+write_deltalake('/lakehouse/default/Tables/output', df, mode='overwrite')
 ```
+
+### Python: T-SQL via notebookutils.data (Warehouse, SQL Database, Lakehouse)
+
+```python
+# connect_to_artifact supports: Warehouse (full DML), Lakehouse (read-only),
+# SQLDatabase (full DML), MirroredDatabase (read-only)
+with notebookutils.data.connect_to_artifact('WarehouseName') as conn:
+    conn.query('CREATE TABLE dbo.test (id INT, name VARCHAR(100))')
+    conn.query("INSERT INTO dbo.test VALUES (1, 'hello')")
+    df = conn.query('SELECT * FROM dbo.test')
+    print(df)
+
+# Cross-workspace
+conn = notebookutils.data.connect_to_artifact(
+    'warehouse_name', workspace='<workspace-guid>', artifact_type='Warehouse'
+)
+```
+
+`notebookutils.data` is Python notebook only; not available in PySpark.
+
+### PySpark: Write to Warehouse (synapsesql connector)
+
+```python
+import com.microsoft.spark.fabric
+from com.microsoft.spark.fabric.Constants import Constants
+
+df.write.synapsesql("WarehouseName.dbo.table", mode="overwrite")
+df = spark.read.synapsesql("WarehouseName.dbo.table")
+```
+
+Requires Runtime 1.3+. Known to fail with opaque errors from `fab job run`; use `fab open` to check Spark logs in the portal.
 
 ## Running Notebooks
 
-### Run Synchronously (Wait for Completion)
-
 ```bash
-# Run notebook and wait
-fab job run "Production.Workspace/ETL Pipeline.Notebook"
+# Synchronous (wait for completion)
+fab job run "ws.Workspace/ETL.Notebook"
 
-# Run with timeout (seconds)
-fab job run "Production.Workspace/Long Process.Notebook" --timeout 600
+# With timeout
+fab job run "ws.Workspace/ETL.Notebook" --timeout 600
 
-# Run with custom polling interval (seconds) for status checks
-fab job run "Production.Workspace/ETL Pipeline.Notebook" --polling_interval 30
-```
+# Asynchronous
+fab job start "ws.Workspace/ETL.Notebook"
+fab job run-status "ws.Workspace/ETL.Notebook" --id <job-id>
 
-### Run with Parameters
+# With parameters
+fab job run "ws.Workspace/ETL.Notebook" -P date:string=2025-01-01,batch:int=500
 
-```bash
-# Run with basic parameters
-fab job run "Production.Workspace/ETL Pipeline.Notebook" -P \
-  date:string=2024-01-01,\
-  batch_size:int=1000,\
-  debug_mode:bool=false,\
-  threshold:float=0.95
-
-# Parameters must match types defined in notebook
-# Supported types: string, int, float, bool
-```
-
-### Run with Spark Configuration
-
-```bash
-# Run with custom Spark settings
-fab job run "Production.Workspace/Big Data Processing.Notebook" -C '{
-  "conf": {
-    "spark.executor.memory": "8g",
-    "spark.executor.cores": "4",
-    "spark.dynamicAllocation.enabled": "true"
-  },
-  "environment": {
-    "id": "<environment-id>",
-    "name": "Production Environment"
-  }
-}'
-
-# Run with default lakehouse
-fab job run "Production.Workspace/Data Ingestion.Notebook" -C '{
-  "defaultLakehouse": {
-    "name": "MainLakehouse",
-    "id": "<lakehouse-id>",
-    "workspaceId": "<workspace-id>"
-  }
-}'
-
-# Run with workspace Spark pool
-fab job run "Production.Workspace/Analytics.Notebook" -C '{
-  "useStarterPool": false,
-  "useWorkspacePool": "HighMemoryPool"
+# With Spark configuration (PySpark only)
+fab job run "ws.Workspace/ETL.Notebook" -C '{
+  "defaultLakehouse": {"name": "MainLH", "id": "<lh-id>", "workspaceId": "<ws-id>"},
+  "conf": {"spark.sql.shuffle.partitions": "200"}
 }'
 ```
 
-### Run with Combined Parameters and Configuration
+## Getting Notebook Run Outputs
 
-```bash
-# Combine parameters and configuration
-fab job run "Production.Workspace/ETL Pipeline.Notebook" \
-  -P date:string=2024-01-01,batch:int=500 \
-  -C '{
-    "defaultLakehouse": {"name": "StagingLH", "id": "<lakehouse-id>"},
-    "conf": {"spark.sql.shuffle.partitions": "200"}
-  }'
-```
+Cell outputs from completed runs are **not available via any REST API**. The `fab export` and `fab get -q definition` commands return cell source code only; outputs are stored in portal-only snapshots.
 
-### Run Asynchronously
-
-```bash
-# Start notebook and return immediately
-JOB_ID=$(fab job start "Production.Workspace/ETL Pipeline.Notebook" | grep -o '"id": "[^"]*"' | cut -d'"' -f4)
-
-# Check status later
-fab job run-status "Production.Workspace/ETL Pipeline.Notebook" --id "$JOB_ID"
-```
-
-## Monitoring Notebook Executions
-
-### Get Job Status
-
-```bash
-# Check specific job
-fab job run-status "Production.Workspace/ETL Pipeline.Notebook" --id <job-id>
-
-# Get detailed status via API
-WS_ID=$(fab get "Production.Workspace" -q "id")
-NOTEBOOK_ID=$(fab get "Production.Workspace/ETL Pipeline.Notebook" -q "id")
-fab api "workspaces/$WS_ID/items/$NOTEBOOK_ID/jobs/instances/<job-id>"
-```
-
-### List Execution History
-
-```bash
-# List all job runs
-fab job run-list "Production.Workspace/ETL Pipeline.Notebook"
-
-# List only scheduled runs
-fab job run-list "Production.Workspace/ETL Pipeline.Notebook" --schedule
-
-# Get latest run status
-fab job run-list "Production.Workspace/ETL Pipeline.Notebook" | head -n 1
-```
-
-### Cancel Running Job
-
-```bash
-fab job run-cancel "Production.Workspace/ETL Pipeline.Notebook" --id <job-id>
-```
-
-## Scheduling Notebooks
-
-### Create Cron Schedule
-
-```bash
-# Run every 30 minutes
-fab job run-sch "Production.Workspace/ETL Pipeline.Notebook" \
-  --type cron \
-  --interval 30 \
-  --start 2024-11-15T00:00:00 \
-  --end 2025-12-31T23:59:00 \
-  --enable
-```
-
-### Create Daily Schedule
-
-```bash
-# Run daily at 2 AM and 2 PM
-fab job run-sch "Production.Workspace/ETL Pipeline.Notebook" \
-  --type daily \
-  --interval 02:00,14:00 \
-  --start 2024-11-15T00:00:00 \
-  --end 2025-12-31T23:59:00 \
-  --enable
-```
-
-### Create Weekly Schedule
-
-```bash
-# Run Monday and Friday at 9 AM
-fab job run-sch "Production.Workspace/Weekly Report.Notebook" \
-  --type weekly \
-  --interval 09:00 \
-  --days Monday,Friday \
-  --start 2024-11-15T00:00:00 \
-  --enable
-```
-
-### Update Schedule
-
-```bash
-# Modify existing schedule
-fab job run-update "Production.Workspace/ETL Pipeline.Notebook" \
-  --id <schedule-id> \
-  --type daily \
-  --interval 03:00 \
-  --enable
-
-# Disable schedule
-fab job run-update "Production.Workspace/ETL Pipeline.Notebook" \
-  --id <schedule-id> \
-  --disable
-```
-
-## Notebook Configuration
-
-### Set Default Lakehouse
-
-```bash
-# Via notebook properties
-fab set "Production.Workspace/ETL.Notebook" -q lakehouse -i '{
-  "known_lakehouses": [{"id": "<lakehouse-id>"}],
-  "default_lakehouse": "<lakehouse-id>",
-  "default_lakehouse_name": "MainLakehouse",
-  "default_lakehouse_workspace_id": "<workspace-id>"
-}'
-```
-
-### Set Default Environment
-
-```bash
-fab set "Production.Workspace/ETL.Notebook" -q environment -i '{
-  "environmentId": "<environment-id>",
-  "workspaceId": "<workspace-id>"
-}'
-```
-
-### Set Default Warehouse
-
-```bash
-fab set "Production.Workspace/Analytics.Notebook" -q warehouse -i '{
-  "known_warehouses": [{"id": "<warehouse-id>", "type": "Datawarehouse"}],
-  "default_warehouse": "<warehouse-id>"
-}'
-```
-
-## Updating Notebooks
-
-### Update Display Name
-
-```bash
-fab set "Production.Workspace/ETL.Notebook" -q displayName -i "ETL Pipeline v2"
-```
-
-### Update Description
-
-```bash
-fab set "Production.Workspace/ETL.Notebook" -q description -i "Daily ETL pipeline for sales data ingestion and transformation"
-```
-
-## Deleting Notebooks
-
-```bash
-# Delete with confirmation (interactive)
-fab rm "Dev.Workspace/Old Notebook.Notebook"
-
-# Force delete without confirmation
-fab rm "Dev.Workspace/Old Notebook.Notebook" -f
-```
-
-## Advanced Workflows
-
-### Parameterized Notebook Execution
+**Workaround**: write notebook results to a lakehouse table or file, then read them back with DuckDB or `fab cp`:
 
 ```python
-# Create parametrized notebook with cell tagged as "parameters"
-# In notebook, create cell:
-date = "2024-01-01"  # default
-batch_size = 1000    # default
-debug = False        # default
+# In notebook: write results to lakehouse instead of just printing
+import pandas as pd
+from deltalake.writer import write_deltalake
 
-# Execute with different parameters
-fab job run "Production.Workspace/Parameterized.Notebook" -P \
-  date:string=2024-02-15,\
-  batch_size:int=2000,\
-  debug:bool=true
+results = pd.DataFrame({'metric': ['latest_date', 'row_count'], 'value': ['2025-10-14', '541']})
+write_deltalake('/lakehouse/default/Tables/notebook_results', results, mode='overwrite')
 ```
-
-### Notebook Orchestration Pipeline
 
 ```bash
-#!/bin/bash
-
-WORKSPACE="Production.Workspace"
-DATE=$(date +%Y-%m-%d)
-
-# 1. Run ingestion notebook
-echo "Starting data ingestion..."
-fab job run "$WORKSPACE/1_Ingest_Data.Notebook" -P date:string=$DATE
-
-# 2. Run transformation notebook
-echo "Running transformations..."
-fab job run "$WORKSPACE/2_Transform_Data.Notebook" -P date:string=$DATE
-
-# 3. Run analytics notebook
-echo "Generating analytics..."
-fab job run "$WORKSPACE/3_Analytics.Notebook" -P date:string=$DATE
-
-# 4. Run reporting notebook
-echo "Creating reports..."
-fab job run "$WORKSPACE/4_Reports.Notebook" -P date:string=$DATE
-
-echo "Pipeline completed for $DATE"
+# From CLI: read results with DuckDB
+duckdb -c "
+LOAD delta; LOAD azure;
+CREATE SECRET (TYPE azure, PROVIDER credential_chain, CHAIN 'cli');
+SELECT * FROM delta_scan('abfss://<ws-id>@onelake.../<lh-id>/Tables/notebook_results');
+"
 ```
 
-### Monitoring Long-Running Notebook
+## Reducing Startup Times
+
+| Scenario | Approach | Startup |
+|----------|----------|---------|
+| No custom libs | Starter pool (default) | 5-10s |
+| Need T-SQL, DuckDB, or quick tasks | Python notebook | ~5s |
+| Custom libs, scheduled work | Custom Live Pool + Full mode env | ~5s |
+| Multiple notebooks, same config | High Concurrency Mode | First: normal; rest: instant |
+| Private Link / Managed VNet | Custom pool (unavoidable) | 2-5 min |
+
+**Custom Live Pools**: Workspace Settings > Spark > Pool > New Pool; attach Environment with Full mode publish; enable Live Pool schedule.
+
+**High Concurrency Mode**: Multiple notebooks share one Spark session. Enable in Workspace Settings > Spark > High Concurrency. Use session tags in pipelines to group notebooks.
+
+**Python notebooks**: Skip Spark entirely. DuckDB, Polars, and delta-rs handle most single-node workloads.
+
+## Python %%configure (Scale Up)
+
+Python notebooks default to 2 vCores / 16GB. Scale up with `%%configure` in the first cell:
+
+```json
+%%configure -f
+{
+    "vCores": 8,
+    "defaultLakehouse": {
+        "name": "MyLH",
+        "id": "<lakehouse-guid>",
+        "workspaceId": "<workspace-guid>"
+    },
+    "mountPoints": [
+        {
+            "mountPoint": "/myMount",
+            "source": "abfss://<container>@<account>.dfs.core.windows.net/<path>"
+        }
+    ]
+}
+```
+
+Supported vCores: 4, 8, 16, 32, 64 (8GB RAM per vCore).
+
+## Scheduling, Monitoring, and Management
 
 ```bash
-#!/bin/bash
+# Schedule (cron, daily, weekly)
+fab job run-sch "ws.Workspace/ETL.Notebook" --type daily --interval 02:00 --enable
 
-NOTEBOOK="Production.Workspace/Long Process.Notebook"
+# List execution history
+fab job run-list "ws.Workspace/ETL.Notebook"
 
-# Start job
-JOB_ID=$(fab job start "$NOTEBOOK" -P date:string=$(date +%Y-%m-%d) | \
-  grep -o '"id": "[^"]*"' | head -1 | cut -d'"' -f4)
+# Cancel running job
+fab job run-cancel "ws.Workspace/ETL.Notebook" --id <job-id>
 
-echo "Started job: $JOB_ID"
+# Export / import
+fab export "ws.Workspace/ETL.Notebook" -o /tmp/notebooks -f
+fab import "ws.Workspace/ETL.Notebook" -i /tmp/notebooks/ETL.Notebook -f
 
-# Poll status every 30 seconds
-while true; do
-  STATUS=$(fab job run-status "$NOTEBOOK" --id "$JOB_ID" | \
-    grep -o '"status": "[^"]*"' | cut -d'"' -f4)
+# Copy between workspaces
+fab cp "Dev.Workspace/ETL.Notebook" "Prod.Workspace" -f
 
-  echo "[$(date +%H:%M:%S)] Status: $STATUS"
+# Delete
+fab rm "ws.Workspace/Old.Notebook" -f
 
-  if [[ "$STATUS" == "Completed" ]] || [[ "$STATUS" == "Failed" ]]; then
-    break
-  fi
+# Open in browser
+fab open "ws.Workspace/ETL.Notebook"
 
-  sleep 30
-done
-
-if [[ "$STATUS" == "Completed" ]]; then
-  echo "Job completed successfully"
-  exit 0
-else
-  echo "Job failed"
-  exit 1
-fi
+# Open in VS Code (Synapse extension required)
+# vscode://SynapseVSCode.synapse?workspaceId=<ws-id>&artifactId=<nb-id>&tenantId=<tenant-id>
 ```
 
-### Conditional Notebook Execution
+## Example Notebooks
 
-```bash
-#!/bin/bash
+Working examples in `examples/`:
 
-WORKSPACE="Production.Workspace"
-
-# Check if data is ready
-DATA_READY=$(fab api "workspaces/<ws-id>/lakehouses/<lh-id>/Files/ready.flag" 2>&1 | grep -c "200")
-
-if [ "$DATA_READY" -eq 1 ]; then
-  echo "Data ready, running notebook..."
-  fab job run "$WORKSPACE/Process Data.Notebook" -P date:string=$(date +%Y-%m-%d)
-else
-  echo "Data not ready, skipping execution"
-fi
-```
-
-## Notebook Definition Structure
-
-Notebook definition contains:
-
-NotebookName.Notebook/
-├── .platform                  # Git integration metadata
-├── notebook-content.py        # Python code (or .ipynb format)
-└── metadata.json             # Notebook metadata
-
-### Query Notebook Content
-
-```bash
-NOTEBOOK="Production.Workspace/ETL.Notebook"
-
-# Get Python code content
-fab get "$NOTEBOOK" -q "definition.parts[?path=='notebook-content.py'].payload | [0]" | base64 -d
-
-# Get metadata
-fab get "$NOTEBOOK" -q "definition.parts[?path=='metadata.json'].payload | [0]" | base64 -d | jq .
-```
-
-## Troubleshooting
-
-### Notebook Execution Failures
-
-```bash
-# Check recent execution
-fab job run-list "Production.Workspace/ETL.Notebook" | head -n 5
-
-# Get detailed error
-fab job run-status "Production.Workspace/ETL.Notebook" --id <job-id> -q "error"
-
-# Common issues:
-# - Lakehouse not attached
-# - Invalid parameters
-# - Spark configuration errors
-# - Missing dependencies
-```
-
-### Parameter Type Mismatches
-
-```bash
-# Parameters must match expected types
-# ❌ Wrong: -P count:string=100    (should be int)
-# ✅ Right: -P count:int=100
-
-# Check notebook definition for parameter types
-fab get "Production.Workspace/ETL.Notebook" -q "definition.parts[?path=='notebook-content.py']"
-```
-
-### Lakehouse Access Issues
-
-```bash
-# Verify lakehouse exists and is accessible
-fab exists "Production.Workspace/MainLakehouse.Lakehouse"
-
-# Check notebook's lakehouse configuration
-fab get "Production.Workspace/ETL.Notebook" -q "properties.lakehouse"
-
-# Re-attach lakehouse
-fab set "Production.Workspace/ETL.Notebook" -q lakehouse -i '{
-  "known_lakehouses": [{"id": "<lakehouse-id>"}],
-  "default_lakehouse": "<lakehouse-id>",
-  "default_lakehouse_name": "MainLakehouse",
-  "default_lakehouse_workspace_id": "<workspace-id>"
-}'
-```
-
-## Performance Tips
-
-1. **Use workspace pools**: Faster startup than starter pool
-2. **Cache data in lakehouses**: Avoid re-fetching data
-3. **Parameterize notebooks**: Reuse logic with different inputs
-4. **Monitor execution time**: Set appropriate timeouts
-5. **Use async execution**: Don't block on long-running notebooks
-6. **Optimize Spark config**: Tune for specific workloads
-
-## Best Practices
-
-1. **Tag parameter cells**: Use "parameters" tag for injected params
-2. **Handle failures gracefully**: Add error handling and logging
-3. **Version control notebooks**: Export and commit to Git
-4. **Use descriptive names**: Clear naming for scheduled jobs
-5. **Document parameters**: Add comments explaining expected inputs
-6. **Test locally first**: Validate in development workspace
-7. **Monitor schedules**: Review execution history regularly
-8. **Clean up old notebooks**: Remove unused notebooks
-
-## Security Considerations
-
-1. **Credential management**: Use Key Vault for secrets
-2. **Workspace permissions**: Control who can execute notebooks
-3. **Parameter validation**: Sanitize inputs in notebook code
-4. **Data access**: Respect lakehouse/warehouse permissions
-5. **Logging**: Don't log sensitive information
-
-## Related Scripts
-
-- `scripts/run_notebook_pipeline.py` - Orchestrate multiple notebooks
-- `scripts/monitor_notebook.py` - Monitor long-running executions
-- `scripts/export_notebook.py` - Export with validation
-- `scripts/schedule_notebook.py` - Simplified scheduling interface
+- **`examples/python-notebook.ipynb`** -- Python kernel with delta-rs, DuckDB, and `notebookutils.data` T-SQL patterns
+- **`examples/pyspark-notebook.ipynb`** -- PySpark kernel with Spark SQL read and `saveAsTable` write patterns

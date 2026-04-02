@@ -372,10 +372,12 @@ fab <command> --help
 - [Essential Commands](./references/essential-commands.md) - Detailed command examples and common workflows
 - [Querying Data](./references/querying-data.md) - Query semantic models in DAX and lakehouses or warehouses in SQL with DuckDB
 - [Lakehouses](./references/lakehouses.md) - Endpoints, file/table operations, OneLake paths
+- [Warehouses](./references/warehouses.md) - Create, browse, query via DuckDB, load data
+- [SQL Databases](./references/sql-databases.md) - Create, browse, query via DuckDB, auto-mirroring
 - [Semantic Models](./references/semantic-models.md) - TMDL, DAX, refresh, storage mode
 - [Reports](./references/reports.md) - Export, import, visuals, fields
 - [Paginated Reports](./references/paginated-reports.md) - RDL upload, export-to-file, datasources, parameters
-- [Notebooks](./references/notebooks.md) - Job execution, parameters
+- [Notebooks](./references/notebooks.md) - Python/PySpark kernels, metadata, cell CRUD, Livy execution, scheduling
 - [Workspaces](./references/workspaces.md) - Create, manage, permissions
 - [Deployment Pipelines](./references/deployment-pipelines.md) - CI/CD, deploy stages, selective deploy, LRO polling
 - [Dataflows](./references/dataflows.md) - Gen1 and Gen2, refresh, publish, admin
