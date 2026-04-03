@@ -118,6 +118,8 @@ Any `Sql.Database`, `Lakehouse.Contents`, `Web.Contents`, or similar connector c
 
 - **`references/examples.md`** -- Full pipeline with connection binding, inline M, error handling
 - **`references/partition-preview.md`** -- Previewing semantic model partitions, step inspection, row limits, output to file/OneLake
+- **`examples/execute_m.py`** -- Python script to execute M expressions via the API (CLI tool)
+- **`examples/preview_partition.py`** -- Python script to preview partition data at any step (uses `fab get` + `execute_m.py`)
 - [Execute Query API](https://learn.microsoft.com/en-us/rest/api/fabric/dataflow/query-execution/execute-query)
 - [Dataflow Definition Structure](https://learn.microsoft.com/en-us/rest/api/fabric/articles/item-management/definitions/dataflow-definition)
 - [Connections API](https://learn.microsoft.com/en-us/rest/api/fabric/core/connections)

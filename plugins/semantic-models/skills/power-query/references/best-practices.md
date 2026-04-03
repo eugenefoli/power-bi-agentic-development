@@ -29,17 +29,97 @@ Query folding translates M steps into native data source queries (SQL, OData, et
 | `Table.Distinct` | `DISTINCT` |
 | `Table.Skip` | `OFFSET` |
 
-### Steps That Break Folding
+### Operations That Break Folding
 
-Once folding breaks, all subsequent steps also run locally:
+Once folding breaks, all subsequent steps also run locally. This list applies primarily to SQL Server via `Sql.Database`; other sources may differ.
 
-- `Table.AddColumn` with custom M expressions (not translatable)
-- `Table.Buffer` (forces materialization)
-- `Table.Combine` across different data sources
-- Complex `each` expressions with M-only logic (`Text.Combine`, `List.Transform`, etc.)
-- `Table.TransformColumns` with custom functions
-- `Table.Pivot` / `Table.Unpivot` (depends on source)
-- Accessing columns from other queries (cross-query references)
+**Table construction / materialization:**
+- `Table.Buffer` -- forces full data load to memory
+- `List.Buffer` -- forces full list load to memory
+- `Table.StopFolding` -- explicitly stops folding
+- `#table` constructor, `Table.FromList`, `Table.FromRecords`, `Table.FromRows`, `Table.FromValue`, `Table.FromColumns` -- creates table locally
+
+**Row position / index operations:**
+- `Table.AddIndexColumn` -- no SQL row index equivalent
+- `Table.LastN` / `Table.RemoveLastN` -- no SQL BOTTOM N
+- `Table.Range` (mid-range), `Table.Repeat`, `Table.AlternateRows` -- no SQL equivalent
+- `Table.InsertRows`, `Table.RemoveRows` (by position) -- positional, not predicate-based
+- `Table.ReverseRows` -- no SQL row-reverse
+- `Table.FindText` -- full-text search not translatable
+
+**Text functions (inside `Table.TransformColumns` or `Table.AddColumn`):**
+- `Text.Proper` / "Capitalize Each Word"
+- `Text.Combine` (multi-column merge), `Text.Insert`, `Text.Remove`, `Text.RemoveRange`
+- `Text.Select`, `Text.Split`, `Text.SplitAny`
+- `Text.BeforeDelimiter`, `Text.AfterDelimiter`, `Text.BetweenDelimiters`
+- `Text.PadStart`, `Text.PadEnd`, `Text.Reverse`, `Text.Format`
+- `Text.ToList`, `Text.Clean`
+- `Text.From` with format/culture arguments
+
+**Column splitting / combining:**
+- `Table.SplitColumn`, `Table.CombineColumns`, all `Splitter.*` functions
+
+**Pivot / transpose / structure:**
+- `Table.Transpose`, `Table.DemoteHeaders`, `Table.PromoteHeaders`
+
+**Fill / imputation:**
+- `Table.FillDown`, `Table.FillUp` -- requires stateful row scanning
+
+**Error handling:**
+- `Table.RemoveRowsWithErrors`, `Table.SelectRowsWithErrors`
+- `try...otherwise` in row context
+
+**Schema / metadata:**
+- `Table.Schema`, `Table.ColumnNames`, `Value.Type`, `Type.Is`
+
+**Custom functions / iteration:**
+- User-defined `(x) => ...` lambdas in row context
+- `Table.TransformRows` -- arbitrary M function per row
+- `List.Generate`, `List.Accumulate` -- iterative; no SQL equivalent
+- `List.Transform` with complex logic
+
+**Record / list / structured columns:**
+- `Table.ExpandListColumn`, `Table.ExpandRecordColumn` (except after same-source NestedJoin)
+- `Record.*` functions, `Table.ToRecords`, `Table.ToRows`, `Table.ToList`, `Table.Column`
+
+**Date/time in row context:**
+- `Date.ToText` / `DateTime.ToText` / `Duration.ToText` with format strings
+- `Date.IsInCurrentMonth`, `Date.IsInCurrentWeek` and similar relative date filters
+- `Date.DayOfWeekName`, `Date.MonthName` -- locale-dependent
+
+**Miscellaneous:**
+- `Table.Profile` -- statistical summary; local only
+- `Table.Max`, `Table.Min` (returning row) -- returns record not table
+- `Table.Contains`, `Table.ContainsAll`, `Table.ContainsAny`, `Table.IsDistinct` -- returns boolean
+
+### Operations That Sometimes Fold
+
+These fold under certain conditions:
+
+- `Table.AddColumn` -- folds if expression uses only SQL-translatable functions (arithmetic, `Text.Upper`); breaks with complex M logic
+- `Table.TransformColumns` -- folds for `Text.Upper`, `Text.Lower`, `Text.Trim`, `Number.Round`; breaks for `Text.Proper`, complex lambdas
+- `Table.TransformColumnTypes` -- folds for compatible casts (int to decimal); breaks for locale-specific or M-only types
+- `Table.ReplaceValue` -- folds with simple literal replacement; breaks with patterns
+- `Table.Pivot` / `Table.Unpivot` -- folds on SQL Server (PIVOT/UNPIVOT support); breaks on other sources
+- `Table.NestedJoin` -- folds when both sources are the same SQL connection; breaks across different sources
+- `Table.Combine` / append -- folds as UNION ALL when all inputs are same SQL source
+- `Table.SelectRows` with `Text.Contains` -- folds as `LIKE '%value%'` on SQL Server
+- `Table.Group` -- folds with standard aggregations (`List.Sum`, `List.Count`, `List.Average`); breaks with custom functions
+- `Value.NativeQuery` -- subsequent steps fold only if `EnableFolding=true` is set
+- `Text.Start` / `Text.End` -- often fold as `LEFT()` / `RIGHT()`; `Text.Middle` often does not
+- `Date.Year`, `Date.Month`, `Date.Day` -- fold as `YEAR()`, `MONTH()`, `DAY()`
+- `Date.AddDays` / `Date.AddMonths` -- fold as `DATEADD()`
+
+### Environmental Fold-Breakers
+
+Not functions, but conditions that prevent folding:
+
+- Merging/appending queries from different data sources
+- Incompatible data privacy levels between sources (Data Privacy Firewall intervenes)
+- Source is a flat file (CSV, Excel, JSON, XML) -- no query engine
+- Source is `Web.Contents` / API -- no SQL engine
+- Custom SQL without `EnableFolding=true`
+- Any step after a fold-breaking step (chain is broken; cannot re-fold)
 
 ### Folding Strategy
 
