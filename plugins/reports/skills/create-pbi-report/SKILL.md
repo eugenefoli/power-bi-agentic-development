@@ -5,7 +5,7 @@ description: "This skill should be used when the user asks to 'create a new repo
 
 # Creating Power BI Reports
 
-Create and scaffold Power BI reports using `pbir` CLI. Load the `pbir-cli` and `pbi-report-design` skills alongside this one.
+Create and scaffold Power BI reports using `pbir` CLI. Install with `uv tool install pbir-cli` or `pip install pbir-cli`. Load the `pbir-cli` and `pbi-report-design` skills alongside this one.
 
 ## Rules
 

@@ -10,7 +10,7 @@ Skill that teaches Claude about the Power BI Enhanced Report (PBIR) JSON format 
 
 Follow within reason the [agent tone guidelines](./important/AGENT-TONE.md) when working with reports.
 
-**WARNING:** The PBIR format is brittle and easily corrupted. Direct JSON file modification can lead to corruption. Prefer using the `pbir` CLI tool if available, as it has built-in safeguards against breaking report files. Only fall back to direct JSON modification if the user explicitly requests it or if `pbir` is not available.
+**WARNING:** The PBIR format is brittle and easily corrupted. Direct JSON file modification can lead to corruption. **Strongly prefer using the `pbir` CLI tool** (`uv tool install pbir-cli` or `pip install pbir-cli`), which has built-in safeguards -- field type resolution, schema validation, and structural integrity checks. Load the `pbir-cli` skill for CLI guidance. Only fall back to direct JSON modification if the user explicitly requests it or if `pbir` is not available.
 
 ## General, critical guidance
 

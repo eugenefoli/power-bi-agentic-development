@@ -8,7 +8,7 @@ description: "This skill should be used when the user asks to 'create a theme', 
 
 Covers design, enforcement, compliance auditing, and validation of Power BI report themes. For PBIR JSON mechanics — exact property names, filter pane selectors, ThemeDataColor syntax, and `jq` patterns — see the **`pbir-format`** skill (pbip plugin) → `references/theme.md`.
 
-> **Tooling preference:** Use `pbir` CLI when available (`pbir theme colors`, `pbir visuals clear-formatting`). Fall back to direct `jq` modification when unavailable. Always validate with `jq empty <file>` after every write.
+> **Tooling preference:** Use `pbir` CLI when available (`pbir theme colors`, `pbir visuals clear-formatting`). Install with `uv tool install pbir-cli` or `pip install pbir-cli`. Fall back to direct `jq` modification when unavailable. Always validate with `jq empty <file>` after every write.
 
 > **CRITICAL — Do not read theme files directly.** Theme JSON files can be 75KB+ and 2000+ lines — loading the entire file is extremely token-expensive and unnecessary. Always use `jq` to extract only the specific keys needed. First check what keys exist (`jq 'keys' "$THEME"`), then query specific paths (`jq '.visualStyles["*"]["*"]' "$THEME"`). Never use the `Read` tool or `cat` on a theme file.
 
